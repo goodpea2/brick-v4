@@ -1133,16 +1133,18 @@ export const sketch = (p, state) => {
                     
                     const hpToAdd = taxReturn.config.brickHpBuff;
                     const radius = board.gridUnitSize * taxReturn.config.brickHpBuffRadiusTiles;
-                    for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) {
-                        const brick = bricks[c][r];
-                        if (brick) {
-                            const brickPos = brick.getPixelPos(board);
-                            const centerPos = p.createVector(brickPos.x + (brick.size * brick.widthInCells) / 2, brickPos.y + (brick.size * brick.heightInCells) / 2);
-                            if (p.dist(ball.pos.x, ball.pos.y, centerPos.x, centerPos.y) < radius) {
-                                const isMerged = brick.widthInCells > 1 || brick.heightInCells > 1;
-                                const healthCap = isMerged ? 600 : 200;
-                                brick.health = Math.min(healthCap, brick.health + hpToAdd);
-                                brick.maxHealth = Math.min(healthCap, brick.maxHealth + hpToAdd);
+                    for (let c = 0; c < board.cols; c++) {
+                        for (let r = 0; r < board.rows; r++) {
+                            const brick = bricks[c][r];
+                            if (brick) {
+                                const brickPos = brick.getPixelPos(board);
+                                const centerPos = p.createVector(brickPos.x + (brick.size * brick.widthInCells) / 2, brickPos.y + (brick.size * brick.heightInCells) / 2);
+                                if (p.dist(ball.pos.x, ball.pos.y, centerPos.x, centerPos.y) < radius) {
+                                    const isMerged = brick.widthInCells > 1 || brick.heightInCells > 1;
+                                    const healthCap = isMerged ? 600 : 200;
+                                    brick.health = Math.min(healthCap, brick.health + hpToAdd);
+                                    brick.maxHealth = Math.min(healthCap, brick.maxHealth + hpToAdd);
+                                }
                             }
                         }
                     }
@@ -1296,8 +1298,13 @@ export const sketch = (p, state) => {
         if (!targetBrick) { min_dist_sq = Infinity; for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) { const b = bricks[c][r]; if (b) { const bp = b.getPixelPos(board), d_sq = p.pow(position.x - (bp.x + b.size / 2), 2) + p.pow(position.y - (bp.y + b.size / 2), 2); if (d_sq < min_dist_sq) { min_dist_sq = d_sq; targetBrick = b; } } } }
         if (targetBrick) {
             const damage = item ? item.config.projectileDamage : BALL_STATS.types.homing.damage;
-            const radius = board.gridUnitSize * (item ? item.config.projectileRadiusTiles : BALL_STATS.types.homing.radiusTiles);
-            const turnRate = item ? item.config.turnRate : BALL_STATS.types.homing.turnRate;
+            const radiusTiles = item
+                ? item.config.projectileRadiusTiles
+                : 0.3; // Hardcoded visual radius
+            const radius = board.gridUnitSize * radiusTiles;
+            const turnRate = (item && item.config.turnRate)
+                ? item.config.turnRate
+                : BALL_STATS.types.homing.turnRate;
             const bonusExplosionRadius = item ? 0 : state.upgradeableStats.homingExplosionRadius;
             const vel = p.constructor.Vector.sub(targetBrick.getPixelPos(board), position).setMag(1);
             projectiles.push(new HomingProjectile(p, position, vel, damage, targetBrick, radius, turnRate, board, bonusExplosionRadius));
@@ -1400,7 +1407,10 @@ export const sketch = (p, state) => {
                     sounds.levelUp();
                     ui.showLevelUpModal(state.mainLevel);
 
-                    if (newLevel === UNLOCK_LEVELS.REWARD_GEMS_LVL_13 && oldLevel < UNLOCK_LEVELS.REWARD_GEMS_LVL_13) {
+                    if (newLevel >= 19) {
+                        state.playerGems += 10;
+                        state.lifetimeGems += 10;
+                    } else if (newLevel === UNLOCK_LEVELS.REWARD_GEMS_LVL_13 && oldLevel < UNLOCK_LEVELS.REWARD_GEMS_LVL_13) {
                         state.playerGems += 10;
                         state.lifetimeGems += 10;
                     }

@@ -2,7 +2,7 @@
 
 import * as dom from './dom.js';
 import { state, applyAllUpgrades } from './state.js';
-import { UNLOCK_LEVELS, UPGRADE_UNLOCK_LEVELS, XP_SETTINGS } from './balancing.js';
+import { UNLOCK_LEVELS, UPGRADE_UNLOCK_LEVELS, XP_SETTINGS, EQUIPMENT_SLOT_COSTS } from './balancing.js';
 import { UNLOCK_DESCRIPTIONS } from './text.js';
 import { sounds } from './sfx.js';
 import { ALL_EQUIPMENT_IDS, generateRandomEquipment } from './equipment.js';
@@ -64,7 +64,10 @@ export function updateAllBallTooltips() {
 
 
         tooltipEl.innerHTML = `
-            <div class="tooltip-header">${name} ${iconsHTML}</div>
+            <div class="tooltip-header">
+                <span>${name}</span>
+                <div class="tooltip-icons-container">${iconsHTML}</div>
+            </div>
             <div class="tooltip-description">${descriptions[type] || ''}</div>
         `;
     });
@@ -616,7 +619,7 @@ export function renderEquipmentUI() {
                 const slot = document.createElement('div');
                 slot.className = 'equipment-slot-buy';
                 
-                const cost = (i === 1) ? 10 : 50;
+                const cost = EQUIPMENT_SLOT_COSTS[i + 1];
                 const canAfford = state.playerGems >= cost;
                 
                 slot.innerHTML = `<button class="buy-slot-btn" ${!canAfford ? 'disabled' : ''}>Unlock<br>${cost} 💎</button>`;

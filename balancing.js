@@ -264,6 +264,11 @@ export const SHOP_PARAMS = {
     homingExplosionRadius: { baseCost: 80, value: 0.2, baseValue: 0 },
 };
 
+export const EQUIPMENT_SLOT_COSTS = {
+    2: 8,  // Cost for 2nd slot
+    3: 30, // Cost for 3rd slot
+};
+
 export const INITIAL_UPGRADE_STATE = {
     extraBallHp: { level: 1 },
     aimLength: { level: 1 },
