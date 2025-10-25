@@ -1347,6 +1347,21 @@ export const sketch = (p, state) => {
     };
     
     function handleEndTurnEffects() {
+        // Definitive check for level completion at the end of the turn.
+        // This ensures that if the last goal brick was cleared by an indirect
+        // effect (like an explosion), the level is still completed correctly.
+        let goalBricksLeft = 0;
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                if (bricks[c][r] && bricks[c][r].type === 'goal') {
+                    goalBricksLeft++;
+                }
+            }
+        }
+        if (goalBricksLeft === 0) {
+            gameState = 'levelClearing';
+        }
+
         levelStats.maxDamageInTurn = Math.max(levelStats.maxDamageInTurn, levelStats.damageThisTurn);
         levelStats.damageThisTurn = 0;
         
