@@ -1,0 +1,283 @@
+// render.js - All p5.js drawing logic
+
+import { AIMING_SETTINGS } from './balancing.js';
+import { state } from './state.js';
+
+function previewTrajectory(p, sP, sV, ball) {
+    if (!ball || sV.mag() < 1) return;
+    let pos = sP.copy(), vel = sV.copy();
+    p.stroke(0, 255, 127, 150);
+    p.strokeWeight(4);
+    const lineLength = ball.radius * 2 * 2;
+    const endPos = p.constructor.Vector.add(pos, vel.normalize().mult(lineLength));
+    p.line(pos.x, pos.y, endPos.x, endPos.y);
+}
+
+
+function drawLiveCombo(p, combo) {
+    if (combo > 1) {
+        const y = 40;
+        const size = 24 + Math.min(20, combo / 2);
+        const alpha = Math.min(255, 100 + combo * 5);
+        const comboColor = p.lerpColor(p.color(255, 255, 0), p.color(255, 0, 0), p.min(1, combo / 50));
+        comboColor.setAlpha(alpha);
+
+        p.push();
+        p.textAlign(p.CENTER, p.CENTER);
+        p.textSize(size);
+        p.textStyle(p.BOLD);
+        
+        p.fill(0, alpha * 0.5);
+        p.text(`${combo} Combo`, p.width / 2 + 2, y + 2);
+        
+        p.fill(comboColor);
+        p.text(`${combo} Combo`, p.width / 2, y);
+        p.pop();
+    }
+}
+
+function drawGoldenTurnAnnouncement(p, board, gameState) {
+    if (!state.isGoldenTurn || gameState !== 'aiming') return;
+
+    let coinBonus = 100;
+    if (state.skillTreeState['golden_shot_coin_1']) coinBonus += 50;
+    if (state.skillTreeState['golden_shot_coin_2']) coinBonus += 50;
+    if (state.skillTreeState['golden_shot_coin_3']) coinBonus += 50;
+
+    let xpBonus = 0;
+    if (state.skillTreeState['golden_shot_xp_1']) xpBonus += 100;
+    if (state.skillTreeState['golden_shot_xp_2']) xpBonus += 100;
+    if (state.skillTreeState['golden_shot_xp_3']) xpBonus += 100;
+    
+    let announcementText = `Golden Turn! +${coinBonus}% 🪙`;
+    if (xpBonus > 0) {
+        announcementText += `, +${xpBonus}% XP`;
+    }
+
+    const y = board.y + 30;
+    const size = 22;
+    const goldenColor = p.color(255, 215, 0);
+
+    p.push();
+    p.textAlign(p.CENTER, p.CENTER);
+    p.textSize(size);
+    p.textStyle(p.BOLD);
+    
+    // Text shadow
+    p.fill(0, 150);
+    p.text(announcementText, p.width / 2 + 2, y + 2);
+    
+    // Main text
+    p.fill(goldenColor);
+    p.text(announcementText, p.width / 2, y);
+    p.pop();
+}
+
+
+function drawInGameUI(p, ballsInPlay, sharedBallStats) {
+    if (ballsInPlay.length === 0 || (!ballsInPlay[0].isMoving && ballsInPlay[0].type !== 'giant')) return;
+
+    const isLandscape = p.width > p.height;
+    const currentHpValue = sharedBallStats.hp / 10;
+    const totalSegments = Math.ceil(sharedBallStats.maxHp / 10);
+
+    if (isLandscape) {
+        let uiX = p.min(p.width * 0.1, 60);
+        let uiY = p.height / 2;
+        const segWidth = 24, segHeight = 8, segGap = 3, iconSize = 24, iconGap = 6;
+        const availableHeight = p.min(p.height * 0.8, 500);
+        const segsPerCol = Math.floor(availableHeight / (segHeight + segGap));
+        const numCols = Math.ceil(totalSegments / segsPerCol);
+        const barWidth = numCols * (segWidth + segGap);
+        const barHeight = (Math.min(segsPerCol, totalSegments) * (segHeight + segGap)) - segGap;
+
+        let totalUiHeight = barHeight;
+        if (sharedBallStats.maxUses > 0) {
+            totalUiHeight += (sharedBallStats.maxUses * (iconSize + iconGap)) + 10;
+        }
+
+        let currentDrawY = uiY - totalUiHeight / 2;
+
+        if (sharedBallStats.maxUses > 0) {
+            for (let i = 0; i < sharedBallStats.maxUses; i++) {
+                const x = uiX - iconSize / 2, y = currentDrawY;
+                p.strokeWeight(1.5); p.stroke(0);
+                if (i < sharedBallStats.uses) p.fill(255, 193, 7); else p.fill(108, 117, 125);
+                p.beginShape(); p.vertex(x + iconSize * 0.4, y); p.vertex(x + iconSize * 0.4, y + iconSize * 0.5); p.vertex(x + iconSize * 0.2, y + iconSize * 0.5); p.vertex(x + iconSize * 0.6, y + iconSize); p.vertex(x + iconSize * 0.6, y + iconSize * 0.6); p.vertex(x + iconSize * 0.8, y + iconSize * 0.6); p.endShape(p.CLOSE);
+                currentDrawY += iconSize + iconGap;
+            }
+            currentDrawY += 10;
+        }
+
+        for (let i = 0; i < totalSegments; i++) {
+            const col = Math.floor(i / segsPerCol), row = i % segsPerCol;
+            const x = uiX - barWidth / 2 + col * (segWidth + segGap), y = currentDrawY + row * (segHeight + segGap);
+            p.noStroke(); p.fill(47, 47, 47); p.rect(x, y, segWidth, segHeight, 2);
+            let fillWidth = 0;
+            if (i < Math.floor(currentHpValue)) fillWidth = segWidth;
+            else if (i === Math.floor(currentHpValue)) fillWidth = (currentHpValue % 1) * segWidth;
+            if (fillWidth > 0) {
+                if (sharedBallStats.flashTime > 0) p.fill(244, 67, 54); else p.fill(76, 175, 80);
+                p.rect(x, y, fillWidth, segHeight, 2);
+            }
+        }
+    } else { // Portrait
+        let uiX = p.width / 2, uiY = p.height - 90;
+        const segWidth = 8, segHeight = 16, segGap = 2, iconSize = 20, iconGap = 5;
+        const availableWidth = p.min(p.width * 0.9, 400);
+        const segsPerRow = Math.floor(availableWidth / (segWidth + segGap));
+        const numRows = Math.ceil(totalSegments / segsPerRow);
+        const barHeight = numRows * (segHeight + segGap);
+
+        let currentY = uiY - barHeight;
+
+        if (sharedBallStats.maxUses > 0) {
+            const puBarWidth = sharedBallStats.maxUses * (iconSize + iconGap);
+            for (let i = 0; i < sharedBallStats.maxUses; i++) {
+                const x = uiX - puBarWidth / 2 + i * (iconSize + iconGap), y = currentY - (iconSize + 5);
+                p.strokeWeight(1.5); p.stroke(0);
+                if (i < sharedBallStats.uses) p.fill(255, 193, 7); else p.fill(108, 117, 125);
+                p.beginShape(); p.vertex(x + iconSize * 0.4, y); p.vertex(x + iconSize * 0.4, y + iconSize * 0.5); p.vertex(x + iconSize * 0.2, y + iconSize * 0.5); p.vertex(x + iconSize * 0.6, y + iconSize); p.vertex(x + iconSize * 0.6, y + iconSize * 0.6); p.vertex(x + iconSize * 0.8, y + iconSize * 0.6); p.endShape(p.CLOSE);
+            }
+        }
+
+        for (let i = 0; i < totalSegments; i++) {
+            const row = Math.floor(i / segsPerRow), col = i % segsPerRow;
+            const thisRowSegs = (row === numRows - 1) ? totalSegments % segsPerRow || segsPerRow : segsPerRow;
+            const rowWidth = thisRowSegs * (segWidth + segGap) - segGap;
+            const x = uiX - rowWidth / 2 + col * (segWidth + segGap), y = currentY + row * (segHeight + segGap);
+            p.noStroke(); p.fill(47, 47, 47); p.rect(x, y, segWidth, segHeight, 1);
+            let fillHeight = 0;
+            if (i < Math.floor(currentHpValue)) fillHeight = segHeight;
+            else if (i === Math.floor(currentHpValue)) fillHeight = (currentHpValue % 1) * segHeight;
+            if (fillHeight > 0) {
+                if (sharedBallStats.flashTime > 0) p.fill(244, 67, 54); else p.fill(76, 175, 80);
+                p.rect(x, y + segHeight - fillHeight, segWidth, fillHeight, 1);
+            }
+        }
+    }
+}
+
+
+export function renderGame(p, context) {
+    const {
+        gameState, board, splatBuffer, shakeAmount, isAiming, ballsInPlay, endAimPos, 
+        bricks, ghostBalls, miniBalls, projectiles, xpOrbs,
+        particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs,
+        combo, sharedBallStats
+    } = context;
+
+    p.background(40, 45, 55);
+    
+    if (state.isGoldenTurn) {
+        const glowColor = p.color(255, 215, 0); // Gold
+        p.noFill();
+        // Outer glow
+        const pulse = p.map(p.sin(p.frameCount * 0.05), -1, 1, 0.5, 1);
+        glowColor.setAlpha(50 * pulse);
+        p.stroke(glowColor);
+        p.strokeWeight(10);
+        p.rect(board.x - 5, board.y - 5, board.width + 10, board.height + 10, 5);
+        // Inner line
+        glowColor.setAlpha(200);
+        p.stroke(glowColor);
+        p.strokeWeight(3);
+        p.rect(board.x, board.y, board.width, board.height);
+    }
+    
+    p.fill(20, 20, 30);
+    p.noStroke();
+    p.rect(board.x, board.y, board.width, board.height);
+    p.push();
+    p.clip(() => { p.rect(board.x, board.y, board.width, board.height); });
+    p.image(splatBuffer, 0, 0);
+    p.pop();
+    p.push();
+    if (shakeAmount > 0) {
+        const offsetX = p.random(-shakeAmount, shakeAmount);
+        const offsetY = p.random(-shakeAmount, shakeAmount);
+        p.translate(offsetX, offsetY);
+    }
+
+    if (gameState === 'aiming' && isAiming && ballsInPlay.length > 0) {
+        const ball = ballsInPlay[0];
+        previewTrajectory(p, ball.pos, p.constructor.Vector.sub(endAimPos, ball.pos), ball);
+        const cancelRadius = ball.radius * AIMING_SETTINGS.AIM_CANCEL_RADIUS_MULTIPLIER;
+        if (p.dist(endAimPos.x, endAimPos.y, ball.pos.x, ball.pos.y) < cancelRadius) {
+            p.fill(255, 0, 0, 100); p.noStroke(); p.ellipse(ball.pos.x, ball.pos.y, cancelRadius * 2);
+            p.fill(255); p.textAlign(p.CENTER, p.CENTER); p.textSize(12); p.text('Cancel', ball.pos.x, ball.pos.y);
+        }
+    }
+    
+    // RENDER ORDER
+    const drawnBricks = new Set();
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && !drawnBricks.has(brick)) {
+                brick.draw(board);
+                drawnBricks.add(brick);
+            }
+        }
+    }
+    ballsInPlay.forEach(b => { 
+        b.flashTime = sharedBallStats.flashTime; 
+        b.draw(undefined, combo, board); 
+    
+        if (state.capacitorChargeEffect > 0) {
+            const progress = state.capacitorChargeEffect / 30;
+            const radius = b.radius * (2 - progress);
+            const alpha = 255 * progress;
+            p.noFill();
+            p.stroke(255, 0, 0, alpha);
+            p.strokeWeight(2);
+            p.ellipse(b.pos.x, b.pos.y, radius * 2);
+        }
+
+        if (state.invulnerabilityTimer > 0) {
+            const alpha = p.min(255, state.invulnerabilityTimer * 5);
+            const pulse = p.map(p.sin(p.frameCount * 0.2), -1, 1, 0.95, 1.05);
+            p.noFill();
+            p.stroke(0, 150, 255, alpha * 0.7);
+            p.strokeWeight(3);
+            p.ellipse(b.pos.x, b.pos.y, b.radius * 2.2 * pulse);
+        }
+        
+        if (state.isDebugView && b.hitHistory && b.hitHistory.length > 0) {
+            p.noFill();
+            p.stroke(255, 0, 0, 150);
+            p.strokeWeight(1);
+    
+            // Connect history points
+            for (let i = 0; i < b.hitHistory.length - 1; i++) {
+                p.line(b.hitHistory[i].x, b.hitHistory[i].y, b.hitHistory[i+1].x, b.hitHistory[i+1].y);
+            }
+    
+            // Connect the last history point to the current ball position
+            const lastHit = b.hitHistory[b.hitHistory.length - 1];
+            p.line(lastHit.x, lastHit.y, b.pos.x, b.pos.y);
+        }
+    });
+    ghostBalls.forEach(gb => gb.draw());
+    miniBalls.forEach(mb => mb.draw());
+    projectiles.forEach(proj => proj.draw());
+    xpOrbs.forEach(orb => orb.draw());
+    
+    const drawnOverlays = new Set();
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && !drawnOverlays.has(brick)) {
+                brick.drawOverlays(board);
+                drawnOverlays.add(brick);
+            }
+        }
+    }
+
+    [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs].forEach(vfxArray => vfxArray.forEach(v => v.draw()));
+    
+    drawGoldenTurnAnnouncement(p, board, gameState);
+    drawLiveCombo(p, combo);
+    drawInGameUI(p, ballsInPlay, sharedBallStats);
+    p.pop(); // End camera shake
+}
