@@ -17,6 +17,10 @@ export const state = {
     upgradeableStats: {},
     isDebugView: false,
 
+    // Debug view toggles
+    showEventLogDebug: false,
+    showEquipmentDebug: false,
+
     // Persistent Progression State
     mainLevel: 1,
     currentXp: 0,

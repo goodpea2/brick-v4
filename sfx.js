@@ -168,6 +168,7 @@ export const sounds = {
         playSound({ freq: 1174.66, duration: 0.1, type: 'triangle', delay: 0.1, volume: 0.3 }); // D6
         playSound({ freq: 1396.91, duration: 0.3, type: 'sine', delay: 0.2, volume: 0.4, decay: 0.25 }); // F6
     },
+    zap: () => playSound({ freq: 1200, duration: 0.1, type: 'sawtooth', volume: 0.2, decay: 0.08, freqEnd: 800 }),
     
     // --- New UI Sounds ---
     buttonClick: () => playSound({ freq: 200, duration: 0.1, type: 'triangle', volume: 0.3, decay: 0.08 }),

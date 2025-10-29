@@ -20,6 +20,7 @@ export const UNLOCK_DESCRIPTIONS = {
     [UNLOCK_LEVELS.EQUIPMENT_SLOT_3]: "Advanced Customization! You can now unlock the third equipment slot for each ball.",
     [UNLOCK_LEVELS.BALL_CAGE_BRICK]: "Ball Cage Bricks! High HP bricks now have a chance to spawn special cages. Break them to release a clone of your ball!",
     [UNLOCK_LEVELS.HOMING_BALL]: "Homing Ball Unlocked! Click while this ball is moving to launch a projectile that seeks Goal bricks.",
+    [UNLOCK_LEVELS.SPECIAL_BRICKS]: "New Challenge! Special bricks will now appear: WoolBricks (immune to explosions) and ShieldGenBricks (protect other bricks)."
 };
 
 export const EQUIPMENT_TEXT = {
@@ -89,7 +90,7 @@ export const EQUIPMENT_TEXT = {
     },
     'phaser': {
         name: 'Phaser',
-        description: 'The first few hits cause damage without bouncing back.',
+        description: 'The first few brick hits will not make the ball bounce back.',
     },
     'zap_aura': {
         name: 'Zap Aura',
@@ -105,7 +106,7 @@ export const EQUIPMENT_TEXT = {
     },
     'vampire': {
         name: 'Vampirium',
-        description: 'Heal on brick destroyed.',
+        description: 'Heal on brick broken.',
     },
     'tax_return': {
         name: 'Tax Return',

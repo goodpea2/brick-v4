@@ -4,6 +4,7 @@ import { FloatingText } from './vfx.js';
 import { UNLOCK_LEVELS } from './balancing.js';
 import { Brick } from './brick.js';
 import { state } from './state.js';
+import * as event from './eventManager.js';
 
 export function processComboRewards(p, maxComboThisTurn, mainLevel, board, bricks, floatingTexts) {
     if (maxComboThisTurn <= 0) return 0;
@@ -31,7 +32,9 @@ export function processComboRewards(p, maxComboThisTurn, mainLevel, board, brick
     for(let i=0; i<Math.min(stripesToSpawn, emptyCoords.length); i++) {
         const spot = emptyCoords[i];
         const type = p.random() > 0.5 ? 'horizontalStripe' : 'verticalStripe';
-        bricks[spot.c][spot.r] = new Brick(p, spot.c - 6, spot.r - 6, type, 10, board.gridUnitSize);
+        const newBrick = new Brick(p, spot.c - 6, spot.r - 6, type, 10, board.gridUnitSize);
+        bricks[spot.c][spot.r] = newBrick;
+        event.dispatch('BrickSpawned', { brick: newBrick, source: 'combo_reward' });
     }
 
     return giantsToSpawn;

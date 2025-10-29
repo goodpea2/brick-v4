@@ -450,8 +450,6 @@ export function getLevelSettings() {
         ballCageBrickChance: parseFloat(dom.ballCageBrickChanceInput.value),
         builderBrickChance: parseFloat(dom.builderBrickChanceInput.value),
         healerBrickChance: parseFloat(dom.healerBrickChanceInput.value),
-        equipmentBrickInitialChance: parseFloat(dom.equipmentBrickInitialChanceInput.value),
-        equipmentBrickChancePerLevel: parseFloat(dom.equipmentBrickChancePerLevelInput.value),
         brickCount: parseInt(dom.brickCountInput.value, 10),
         brickCountIncrement: parseInt(dom.brickCountIncrementInput.value, 10),
         maxBrickCount: parseInt(dom.maxBrickCountInput.value, 10),
@@ -467,6 +465,8 @@ export function getLevelSettings() {
         bonusLevelInterval: parseInt(dom.bonusLevelIntervalInput.value, 10),
         minCoinBonusMultiplier: parseInt(dom.minCoinBonusMultiplierInput.value, 10),
         maxCoinBonusMultiplier: parseInt(dom.maxCoinBonusMultiplierInput.value, 10),
+        equipmentBrickInitialChance: 0.1, // Default, but overridden by state
+        equipmentBrickChancePerLevel: 0.1, // Default, but overridden by state
     };
     
     if (state.mainLevel < UNLOCK_LEVELS.COINS_SHOP) {
@@ -589,12 +589,20 @@ export function renderEquipmentUI() {
                         sounds.buttonClick();
                     } else { // Clicked an empty slot
                         if (selectedItem?.source === 'inventory' || selectedItem?.source === 'equipped') {
-                            // Equip item (from inventory or another slot)
-                            const { item, ballType: oldBallType, slotIndex: oldSlotIndex } = selectedItem;
-                            if (oldBallType && oldSlotIndex !== undefined) { // Unequip from old location if it was equipped
-                                state.ballEquipment[oldBallType][oldSlotIndex] = null;
-                            }
+                            // Equip item
+                            const { item } = selectedItem;
+
+                            // First, find and unequip the item from ANY slot it might be in.
+                            Object.keys(state.ballEquipment).forEach(bt => {
+                                const index = state.ballEquipment[bt].findIndex(i => i && i.id === item.id);
+                                if (index !== -1) {
+                                    state.ballEquipment[bt][index] = null;
+                                }
+                            });
+                    
+                            // Now, equip it to the new, clicked slot.
                             state.ballEquipment[ballType][i] = item;
+                            
                             selectedItem = null;
                             hintState = 'none';
                             sounds.selectBall();

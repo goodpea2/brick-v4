@@ -70,7 +70,7 @@ export const BALL_STATS = {
             powerUpUses: 0,
         },
         miniball: {
-            wallHitDamage: 5,
+            wallHitDamage: 2,
             brickHitDamage: 0,
             baseDamage: 6,
         }
@@ -81,6 +81,8 @@ export const BRICK_STATS = {
     maxHp: {
         normal: 200,
         long: 600,
+        wool: 50,
+        shieldGen: 50,
     },
     builder: {
         baseCost: 120,
@@ -88,6 +90,16 @@ export const BRICK_STATS = {
     },
     healer: {
         baseCost: 80,
+        costPer10Hp: 20,
+    },
+    zapper: {
+        baseCost: 100,
+        costPer10Hp: 30,
+        damage: 5,
+        intervalFrames: 15, // 0.25s at 60fps
+    },
+    zap_battery: {
+        baseCost: 0,
         costPer10Hp: 20,
     },
     merging: {
@@ -104,15 +116,26 @@ export const BRICK_STATS = {
         radiusTiles: 1.2,
         damage: 10,
     },
+    wool: {
+        costPer10Hp: 30,
+    },
+    shieldGen: {
+        baseCost: 300,
+        costPer10Hp: 50,
+        auraRadiusTiles: 2.5,
+        damageReduction: 0.5,
+    },
     canReceiveHealing: {
         normal: true,
         goal: true,
         extraBall: true,
-        explosive: true,
-        horizontalStripe: true,
-        verticalStripe: true,
+        explosive: false,
+        horizontalStripe: false,
+        verticalStripe: false,
         ballCage: false,
         equipment: false,
+        wool: false,
+        shieldGen: false,
     },
     canCarryCoin: {
         normal: true,
@@ -123,6 +146,8 @@ export const BRICK_STATS = {
         verticalStripe: false,
         ballCage: false,
         equipment: false,
+        wool: true,
+        shieldGen: false,
     },
     canCarryGem: {
         normal: true,
@@ -133,6 +158,8 @@ export const BRICK_STATS = {
         verticalStripe: false,
         ballCage: false,
         equipment: false,
+        wool: true,
+        shieldGen: false,
     },
 };
 
@@ -151,6 +178,8 @@ export const BRICK_VISUALS = {
         long: 30,
         goal: 10,
         extraBall: 10,
+        wool: 10,
+        shieldGen: 10,
     },
     palettes: {
         normal: [
@@ -176,7 +205,13 @@ export const BRICK_VISUALS = {
             [255, 150, 0],
             [225, 115, 0],
             [220, 90, 0]
-        ]
+        ],
+        wool: [
+            [115, 140, 185]
+        ],
+        shieldGen: [
+            [0, 229, 255]
+        ],
     }
 };
 
@@ -214,6 +249,7 @@ export const UNLOCK_LEVELS = {
     EQUIPMENT_SLOT_3: 16,
     BALL_CAGE_BRICK: 17,
     HOMING_BALL: 18,
+    SPECIAL_BRICKS: 20,
 };
 
 export const DEFAULT_LEVEL_SETTINGS = {

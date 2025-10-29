@@ -1,6 +1,6 @@
 // render.js - All p5.js drawing logic
 
-import { AIMING_SETTINGS } from './balancing.js';
+import { AIMING_SETTINGS, BRICK_STATS } from './balancing.js';
 import { state } from './state.js';
 
 function previewTrajectory(p, sP, sV, ball) {
@@ -163,7 +163,7 @@ export function renderGame(p, context) {
     const {
         gameState, board, splatBuffer, shakeAmount, isAiming, ballsInPlay, endAimPos, 
         bricks, ghostBalls, miniBalls, projectiles, xpOrbs,
-        particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs,
+        particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
         combo, sharedBallStats
     } = context;
 
@@ -209,6 +209,39 @@ export function renderGame(p, context) {
         }
     }
     
+    // --- Shield Aura Calculation ---
+    const allBricksForShieldCheck = [];
+    const shieldGenerators = [];
+    const uniqueBricksForShieldCheck = new Set();
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && !uniqueBricksForShieldCheck.has(brick)) {
+                brick.isShieldedByAura = false; 
+                allBricksForShieldCheck.push(brick);
+                if (brick.type === 'shieldGen') {
+                    shieldGenerators.push(brick);
+                }
+                uniqueBricksForShieldCheck.add(brick);
+            }
+        }
+    }
+
+    shieldGenerators.forEach(shieldGen => {
+        const shieldGenPos = shieldGen.getPixelPos(board).add((shieldGen.size * shieldGen.widthInCells) / 2, (shieldGen.size * shieldGen.heightInCells) / 2);
+        const auraRadiusSq = p.pow(board.gridUnitSize * BRICK_STATS.shieldGen.auraRadiusTiles, 2);
+        allBricksForShieldCheck.forEach(brick => {
+            if (brick !== shieldGen) {
+                const brickPos = brick.getPixelPos(board).add((brick.size * brick.widthInCells) / 2, (brick.size * brick.heightInCells) / 2);
+                const distSq = p.pow(shieldGenPos.x - brickPos.x, 2) + p.pow(shieldGenPos.y - brickPos.y, 2);
+                if (distSq <= auraRadiusSq) {
+                    brick.isShieldedByAura = true;
+                }
+            }
+        });
+    });
+
+
     // RENDER ORDER
     const drawnBricks = new Set();
     for (let c = 0; c < board.cols; c++) {
@@ -272,6 +305,68 @@ export function renderGame(p, context) {
                 drawnOverlays.add(brick);
             }
         }
+    }
+
+    // Zapper VFX
+    let zapperBrick = null;
+    let zapBatteries = [];
+    drawnBricks.forEach(brick => {
+        if (brick.overlay === 'zapper') zapperBrick = brick;
+        if (brick.overlay === 'zap_battery') zapBatteries.push(brick);
+    });
+
+    if (zapperBrick && zapBatteries.length > 0) {
+        const zapperPos = zapperBrick.getPixelPos(board).add(zapperBrick.size / 2, zapperBrick.size / 2);
+        const auraRadius = board.gridUnitSize * (1.5 + (zapBatteries.length - 1) * 0.5);
+
+        // Draw aura
+        p.noFill();
+        p.stroke(148, 0, 211, 80);
+        p.strokeWeight(2);
+        p.ellipse(zapperPos.x, zapperPos.y, auraRadius * 2);
+        p.fill(148, 0, 211, 30);
+        p.noStroke();
+        p.ellipse(zapperPos.x, zapperPos.y, auraRadius * 2);
+        
+        // Draw sparkles inside
+        zapperSparkles.forEach(s => s.draw());
+
+        // Draw connections
+        zapBatteries.forEach(battery => {
+            const batteryPos = battery.getPixelPos(board).add(battery.size / 2, battery.size / 2);
+            
+            const dist = p.dist(batteryPos.x, batteryPos.y, zapperPos.x, zapperPos.y);
+            const dir = p.constructor.Vector.sub(zapperPos, batteryPos).normalize();
+            const perp = dir.copy().rotate(p.HALF_PI);
+            
+            const numSegments = 5;
+            const segmentLength = dist / numSegments;
+            const jaggedness = 8;
+
+            p.noFill();
+            p.stroke(148, 0, 211, 40);
+            p.strokeWeight(5);
+            p.beginShape();
+            p.vertex(batteryPos.x, batteryPos.y);
+            for (let i = 1; i < numSegments; i++) {
+                const posOnLine = p.constructor.Vector.add(batteryPos, dir.copy().mult(i * segmentLength));
+                const offset = perp.copy().mult(p.random(-jaggedness, jaggedness) * p.sin(i * p.PI / numSegments));
+                p.vertex(posOnLine.x + offset.x, posOnLine.y + offset.y);
+            }
+            p.vertex(zapperPos.x, zapperPos.y);
+            p.endShape();
+
+            const numParticles = 5;
+            for (let i = 0; i < numParticles; i++) {
+                const travelTime = 40;
+                const t = ((p.frameCount + i * (travelTime / numParticles)) % travelTime) / travelTime;
+                const particlePos = p.constructor.Vector.lerp(batteryPos, zapperPos, t);
+                const particleAlpha = p.map(p.sin(t * p.PI), 0, 1, 100, 255);
+                p.noStroke();
+                p.fill(221, 160, 221, particleAlpha);
+                p.ellipse(particlePos.x, particlePos.y, p.map(t, 0, 1, 4, 2));
+            }
+        });
     }
 
     [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs].forEach(vfxArray => vfxArray.forEach(v => v.draw()));

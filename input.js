@@ -44,6 +44,14 @@ export function initializeInput(gameController, runCode) {
         dom.debugViewBtn.textContent = state.isDebugView ? 'Debug Off' : 'Debug View';
     });
 
+    dom.toggleEventLog.addEventListener('change', (e) => {
+        state.showEventLogDebug = e.target.checked;
+    });
+
+    dom.toggleEquipmentDebug.addEventListener('change', (e) => {
+        state.showEquipmentDebug = e.target.checked;
+    });
+
     dom.prevLevelBtn.addEventListener('click', () => { sounds.buttonClick(); gameController.prevLevel(); });
     dom.nextLevelBtn.addEventListener('click', () => { sounds.buttonClick(); gameController.nextLevel(); });
 

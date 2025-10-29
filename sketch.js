@@ -5,7 +5,7 @@ import { Ball, MiniBall, HomingProjectile, Projectile, createBallVisuals, calcul
 import { Brick } from './brick.js';
 import { generateLevel } from './levelgen.js';
 import { sounds } from './sfx.js';
-import { Particle, Shockwave, FloatingText, PowerupVFX, StripeFlash, createSplat, createBrickHitVFX, createBallDeathVFX, XpOrb, LeechHealVFX } from './vfx.js';
+import { Particle, Shockwave, FloatingText, PowerupVFX, StripeFlash, createSplat, createBrickHitVFX, createBallDeathVFX, XpOrb, LeechHealVFX, ZapperSparkle } from './vfx.js';
 import * as ui from './ui.js';
 import { processComboRewards } from './combo.js';
 import { getOverlayActions, executeHealAction, executeBuildAction, processInstantOverlayEffects } from './brickOverlay.js';
@@ -14,6 +14,8 @@ import { checkCollisions } from './collision.js';
 import { renderGame } from './render.js';
 import { generateRandomEquipment } from './equipment.js';
 import * as dom from './dom.js';
+import * as event from './eventManager.js';
+import * as equipmentManager from './equipmentManager.js';
 
 export const sketch = (p, state) => {
     // Game state variables
@@ -42,7 +44,7 @@ export const sketch = (p, state) => {
     p.isModalOpen = false;
 
     // VFX & SFX
-    let particles = [], shockwaves = [], floatingTexts = [], powerupVFXs = [], stripeFlashes = [], leechHealVFXs = [];
+    let particles = [], shockwaves = [], floatingTexts = [], powerupVFXs = [], stripeFlashes = [], leechHealVFXs = [], zapperSparkles = [];
     let shakeDuration = 0, shakeAmount = 0;
     let splatBuffer;
     let levelCompleteSoundPlayed = false, gameOverSoundPlayed = false;
@@ -59,6 +61,7 @@ export const sketch = (p, state) => {
     let delayedActionsQueue = [];
     let endTurnActions = [];
     let endTurnActionTimer = 0;
+    let zapperAuraTimer = 0;
     
     p.setup = () => {
         const container = document.getElementById('canvas-container');
@@ -76,6 +79,33 @@ export const sketch = (p, state) => {
             if (btnVisual) btnVisual.style.backgroundImage = `url(${ballVisuals[type]})`;
         });
         
+        event.registerDebugListener((eventName, payload) => {
+            if (!state.isDebugView) return;
+
+            let position = null;
+            if (payload?.ball?.pos) position = payload.ball.pos.copy();
+            else if (payload?.miniBall?.pos) position = payload.miniBall.pos.copy();
+            else if (payload?.brick?.getPixelPos) position = payload.brick.getPixelPos(board).add(board.gridUnitSize / 2, board.gridUnitSize / 2);
+            else if (payload?.pos) position = payload.pos.copy();
+
+            if (position) {
+                // Event Log Floating Text
+                if (state.showEventLogDebug) {
+                    floatingTexts.push(new FloatingText(p, position.x, position.y, `EVENT: ${eventName}`, p.color(255, 100, 255), { size: 10, lifespan: 120, vel: p.createVector(0, -1) }));
+                }
+
+                // Equipment Debug Floating Text
+                if (state.showEquipmentDebug) {
+                    const equipmentDebugs = equipmentManager.getDebugReturnsForEvent(eventName, payload);
+                    if (equipmentDebugs && equipmentDebugs.length > 0) {
+                        const eqText = equipmentDebugs.join('\n');
+                        const yOffset = state.showEventLogDebug ? 12 : 0; // Don't overlap if event log is off
+                         floatingTexts.push(new FloatingText(p, position.x, position.y + yOffset, eqText, p.color(100, 255, 255), { size: 10, lifespan: 120, vel: p.createVector(0, -1) }));
+                    }
+                }
+            }
+        });
+
         p.resetGame(ui.getLevelSettings());
     };
 
@@ -113,8 +143,17 @@ export const sketch = (p, state) => {
                     endTurnActionTimer = 2; // Reset for next action
                 }
                 if (endTurnActions.length === 0) {
-                    // Sequence finished
-                    if (gameState === 'levelClearing') {
+                    // Sequence finished. Now, make the final decision on the next game state.
+                    let goalBricksLeft = 0;
+                    for (let c = 0; c < board.cols; c++) {
+                        for (let r = 0; r < board.rows; r++) {
+                            if (bricks[c][r] && bricks[c][r].type === 'goal') {
+                                goalBricksLeft++;
+                            }
+                        }
+                    }
+        
+                    if (goalBricksLeft === 0) {
                         gameState = 'levelComplete';
                     } else {
                         gameState = 'aiming';
@@ -277,6 +316,56 @@ export const sketch = (p, state) => {
             }
         }
         
+        // Zapper Damage Logic
+        let zapperBrick = null;
+        let zapBatteries = [];
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = bricks[c][r];
+                if (brick) {
+                    if (brick.overlay === 'zapper') zapperBrick = brick;
+                    if (brick.overlay === 'zap_battery') zapBatteries.push(brick);
+                }
+            }
+        }
+
+        zapperSparkles.forEach(s => s.update());
+        zapperSparkles = zapperSparkles.filter(s => !s.isFinished());
+
+        if (zapperBrick && zapBatteries.length > 0 && (gameState === 'playing' || gameState === 'levelClearing')) {
+            zapperAuraTimer++;
+            const zapperPos = zapperBrick.getPixelPos(board).add(zapperBrick.size / 2, zapperBrick.size / 2);
+            const auraRadius = board.gridUnitSize * (1.5 + (zapBatteries.length - 1) * 0.5);
+
+            if (p.frameCount % 2 === 0) {
+                for (let i = 0; i < 2; i++) {
+                    zapperSparkles.push(new ZapperSparkle(p, zapperPos.x, zapperPos.y, auraRadius));
+                }
+            }
+
+            if (zapperAuraTimer >= BRICK_STATS.zapper.intervalFrames) {
+                zapperAuraTimer = 0;
+                let ballWasZapped = false;
+                const allBalls = [...ballsInPlay, ...miniBalls];
+                allBalls.forEach(ball => {
+                    if (p.dist(ball.pos.x, ball.pos.y, zapperPos.x, zapperPos.y) < auraRadius + ball.radius) {
+                        const damageEvent = { type: 'damage_taken', source: 'zapper', ballType: ball.type === 'miniball' ? ball.parentType : ball.type, damageAmount: BRICK_STATS.zapper.damage, position: ball.pos.copy() };
+                        processEvents([damageEvent]);
+                        ballWasZapped = true;
+                    }
+                });
+                if (ballWasZapped) {
+                    sounds.zap();
+                    for(let i = 0; i < 10; i++) {
+                        const angle = p.random(p.TWO_PI);
+                        const vel = p.constructor.Vector.fromAngle(angle).mult(p.random(2, 4));
+                        particles.push(new Particle(p, zapperPos.x, zapperPos.y, p.color(221, 160, 221), 1, { vel, size: p.random(2, 4), lifespan: 30 }));
+                    }
+                }
+            }
+        }
+
+
         // Zap Aura Logic
         const zapAura = equipment.find(item => item.id === 'zap_aura');
         if (zapAura && ballsInPlay.length > 0 && (gameState === 'playing' || gameState === 'levelClearing')) {
@@ -351,7 +440,7 @@ export const sketch = (p, state) => {
             const projEvent = proj.update(board, bricks);
             if (projEvent) {
                 if (projEvent.type === 'homing_explode') {
-                    explode(projEvent.pos, projEvent.radius, projEvent.damage, 'chain-reaction');
+                    explode(projEvent.pos, projEvent.radius, projEvent.damage, 'homing_explode');
                 } else {
                     processEvents([projEvent]);
                 }
@@ -380,9 +469,7 @@ export const sketch = (p, state) => {
 
         const effectiveRadiusMultiplier = XP_SETTINGS.baseMagneticRadiusMultiplier + (ownedMagnetRadiusUpgrades * 0.5);
         const equipmentMagneticMultiplier = xpMagnet ? xpMagnet.value.radius : 1;
-        const xpGainMultiplier = xpMagnet ? xpMagnet.value.xp : 1;
-        const xpHeal = equipment.find(item => item.id === 'xp_heal');
-
+        
         for (let i = xpOrbs.length - 1; i >= 0; i--) {
             const orb = xpOrbs[i];
             orb.update(attractors, 1, equipmentMagneticMultiplier, effectiveRadiusMultiplier); 
@@ -396,7 +483,7 @@ export const sketch = (p, state) => {
                 const distToAttractor = p.dist(orb.pos.x, orb.pos.y, attractor.pos.x, attractor.pos.y);
                 const collectionRadius = attractor.radius;
 
-                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < collectionRadius) {
+                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < collectionRadius && gameState !== 'aiming') {
                     orb.collect();
                     
                     let xpMultiplier = 1.0;
@@ -406,7 +493,7 @@ export const sketch = (p, state) => {
                         if (state.skillTreeState['golden_shot_xp_3']) xpMultiplier += 1.0;
                     }
                     
-                    const xpFromOrb = XP_SETTINGS.xpPerOrb * (1 + state.upgradeableStats.bonusXp) * xpGainMultiplier * xpMultiplier;
+                    const xpFromOrb = XP_SETTINGS.xpPerOrb * (1 + state.upgradeableStats.bonusXp) * xpMultiplier;
                     
                     state.pendingXp += xpFromOrb;
                     if (levelStats.xpCollected !== undefined) levelStats.xpCollected += xpFromOrb;
@@ -419,27 +506,7 @@ export const sketch = (p, state) => {
                         setTimeout(() => playerLevelBadgeEl.classList.remove('flash'), 150);
                     }
                     
-                    if (xpHeal && ballsInPlay.length > 0 && !ballsInPlay[0].isDying) {
-                        state.orbsForHeal++;
-                        if (state.orbsForHeal >= xpHeal.value) {
-                            sharedBallStats.hp = Math.min(sharedBallStats.maxHp, sharedBallStats.hp + 2);
-                            sounds.ballHeal();
-                            state.orbsForHeal = 0;
-                            if (ballsInPlay.length > 0) {
-                                leechHealVFXs.push(new LeechHealVFX(p, ballsInPlay[0].pos.x, ballsInPlay[0].pos.y, ballsInPlay[0].radius));
-                            }
-                        }
-                    }
-                    
-                    const lastStandItem = equipment.find(item => item.id === 'last_stand');
-                    if (lastStandItem) {
-                        state.orbsForLastStand++;
-                        if (state.orbsForLastStand >= lastStandItem.value.orbs) {
-                            state.orbsForLastStand = 0;
-                            state.lastStandCharges += lastStandItem.value.bullets;
-                            floatingTexts.push(new FloatingText(p, attractor.pos.x, attractor.pos.y, `+${lastStandItem.value.bullets} charges!`, p.color(255, 100, 100), {size: 12}));
-                        }
-                    }
+                    event.dispatch('XpCollected', { amount: xpFromOrb, ball: attractor });
                     
                     break; 
                 }
@@ -465,7 +532,7 @@ export const sketch = (p, state) => {
         renderGame(p, {
             gameState, board, splatBuffer, shakeAmount, isAiming, ballsInPlay, endAimPos, 
             bricks, ghostBalls, miniBalls, projectiles, xpOrbs,
-            particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs,
+            particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
             combo, sharedBallStats
         });
 
@@ -521,6 +588,8 @@ export const sketch = (p, state) => {
         delayedActionsQueue = [];
         endTurnActions = [];
         endTurnActionTimer = 0;
+        zapperAuraTimer = 0;
+        zapperSparkles = [];
         gameState = 'aiming';
         levelCompleteSoundPlayed = false; gameOverSoundPlayed = false;
         combo = 0; maxComboThisTurn = 0; isGiantBallTurn = false;
@@ -613,91 +682,81 @@ export const sketch = (p, state) => {
         const pos = position ? position.copy() : p.createVector(board.x + board.width / 2, board.y + board.height / 2);
         floatingTexts.push(new FloatingText(p, pos.x, pos.y, text, color, options));
     };
+    // --- NEW CONTROLLER METHODS ---
+    p.healBall = (amount) => {
+        if (ballsInPlay.length > 0 && !ballsInPlay[0].isDying) {
+            sharedBallStats.hp = Math.min(sharedBallStats.maxHp, sharedBallStats.hp + amount);
+            sounds.ballHeal();
+            const ball = ballsInPlay[0];
+            if (ball.pos && typeof ball.radius === 'number') {
+                leechHealVFXs.push(new LeechHealVFX(p, ball.pos.x, ball.pos.y, ball.radius));
+            }
+        }
+    };
+    p.addCoins = (amount) => {
+        coins += amount;
+        levelStats.coinsCollected += amount;
+        sounds.coin();
+        if (ballsInPlay.length > 0) {
+            const ball = ballsInPlay[0];
+            const canvasRect = p.canvas.getBoundingClientRect();
+            ui.animateCoinParticles(canvasRect.left + ball.pos.x, canvasRect.top + ball.pos.y, amount);
+        }
+    };
+    p.explode = (pos, radius, damage, source) => explode(pos, radius, damage, source);
+    p.spawnHomingProjectile = (position, item) => spawnHomingProjectile(position, item);
+    p.spawnWallBullets = (position, count, damage, velBefore, wallNormal) => spawnWallBullets(position, count, damage, velBefore, wallNormal);
+    p.addProjectiles = (projs) => projectiles.push(...projs);
+    p.getBricks = () => bricks;
+    p.getBoard = () => board;
     
     // --- EVENT & LOGIC PROCESSING ---
     function processEvents(initialEvents) {
         let eventQueue = [...initialEvents];
         while (eventQueue.length > 0) {
-            const event = eventQueue.shift();
-            if (!event) continue;
-            switch (event.type) {
+            const evt = eventQueue.shift();
+            if (!evt) continue;
+            switch (evt.type) {
                 case 'damage_taken':
-                    const damageSourceBallType = event.ballType;
-                    const equipmentForDamage = getActiveEquipmentForBallType(damageSourceBallType);
-    
-                    // Impact Distributor
+                    event.dispatch('BallHpLost', { amount: evt.damageAmount, source: evt.source, ball: ballsInPlay[0], position: evt.position });
+
+                    // Impact Distributor (remains here as it modifies the event)
+                    const equipmentForDamage = getActiveEquipmentForBallType(evt.ballType);
                     const impactDistributor = equipmentForDamage.find(item => item.id === 'impact_distributor');
                     if (impactDistributor) {
-                        if (event.source === 'wall' || event.source === 'miniball_wall') {
-                            event.damageAmount = Math.max(0, event.damageAmount + impactDistributor.value.wall);
-                        } else if (event.source === 'brick') {
-                            event.damageAmount += impactDistributor.value.brick;
+                        if (evt.source === 'wall' || evt.source === 'miniball_wall') {
+                            evt.damageAmount = Math.max(0, evt.damageAmount + impactDistributor.value.wall);
+                        } else if (evt.source === 'brick') {
+                            evt.damageAmount += impactDistributor.value.brick;
                         }
                     }
 
-                    // Handle effects that should trigger even when invulnerable
-                    if (event.source === 'wall' || event.source === 'miniball_wall') {
-                        equipmentForDamage.forEach(item => {
-                            if (item.id === 'wall_explosion') {
-                                state.wallExplosionCharge += item.value;
-                                state.capacitorChargeEffect = 30;
-                            }
-                        });
-                        const wallBulletItem = equipmentForDamage.find(item => item.id === 'wall_bullets');
-                        if (wallBulletItem && event.velBefore && event.wallNormal) {
-                            spawnWallBullets(event.position, wallBulletItem.value, wallBulletItem.config.bulletDamage, event.velBefore, event.wallNormal);
-                        }
-                    }
-    
                     if (state.invulnerabilityTimer > 0) {
-                        // Still play wall hit sounds when invulnerable
-                        if (event.source === 'wall' || event.source === 'miniball_wall') {
-                            sounds.wallHit();
-                        }
-                        break; // Prevent damage and other on-damage effects
+                        if (evt.source === 'wall' || evt.source === 'miniball_wall') sounds.wallHit();
+                        break; 
                     }
     
-                    // Handle effects that only trigger when NOT invulnerable (damage, sounds, etc.)
-                    if (event.source === 'wall' || event.source === 'miniball_wall') {
-                        if (event.source === 'wall') {
+                    if (evt.source === 'wall' || evt.source === 'miniball_wall') {
+                        if (evt.source === 'wall') {
                             sounds.wallHit();
-                            if (!isGiantBallTurn && combo > 0) { sounds.comboReset(); combo = 0; state.comboParticles = []; }
+                            if (!isGiantBallTurn && combo > 0) { 
+                                sounds.comboReset();
+                                event.dispatch('ComboLost', { comboCountBeforeReset: combo });
+                                combo = 0;
+                                state.comboParticles = [];
+                            }
                         } else {
                              sounds.wallHit();
                         }
                     }
     
-                    if (event.source !== 'echo') {
-                        sharedBallStats.hp = Math.max(0, sharedBallStats.hp - event.damageAmount);
+                    if (evt.source !== 'echo') {
+                        sharedBallStats.hp = Math.max(0, sharedBallStats.hp - evt.damageAmount);
                         sharedBallStats.flashTime = 8;
-                        
-                        const retaliationItem = equipmentForDamage.find(item => item.id === 'retaliation');
-                        if (retaliationItem && event.source !== 'miniball_wall') {
-                            state.hpLostForRetaliation += event.damageAmount;
-                            while (state.hpLostForRetaliation >= retaliationItem.value) {
-                                spawnHomingProjectile(event.position, retaliationItem);
-                                state.hpLostForRetaliation -= retaliationItem.value;
-                            }
-                        }
                     }
     
                     if (sharedBallStats.hp <= 0 && ballsInPlay.length > 0 && !ballsInPlay[0].isDying) {
-                        const lastStandItem = equipmentForDamage.find(item => item.id === 'last_stand');
-                        if (lastStandItem && state.lastStandCharges > 0) {
-                            const ball = ballsInPlay[0];
-                            const bulletCount = state.lastStandCharges;
-                            const speed = board.gridUnitSize * 0.5;
-                            const damage = lastStandItem.config.bulletDamage;
-                            const spread = p.TWO_PI;
-                            for (let i = 0; i < bulletCount; i++) {
-                                const angle = (spread / bulletCount) * i;
-                                const vel = p.constructor.Vector.fromAngle(angle).mult(speed);
-                                projectiles.push(new Projectile(p, ball.pos.copy(), vel, damage));
-                            }
-                            state.lastStandCharges = 0;
-                            sounds.bulletFire();
-                        }
-
+                        event.dispatch('BallDying', { ball: ballsInPlay[0] });
                         for (const ball of ballsInPlay) { ball.isDying = true; }
                         if (ballsInPlay[0].type === 'split') { miniBalls.forEach(mb => mb.mainBallIsDead = true); }
                         isGiantBallTurn = false;
@@ -709,15 +768,13 @@ export const sketch = (p, state) => {
                     }
                     break;
                 case 'brick_hit':
-                    levelStats.totalDamage += event.damageDealt;
-                    levelStats.damageThisTurn += event.damageDealt;
-                    floatingTexts.push(new FloatingText(p, event.center.x, event.center.y, `${Math.floor(event.damageDealt)}`, p.color(255, 255, 255), { size: 14, lifespan: 40, vel: p.createVector(0, -0.5) }));
+                    levelStats.totalDamage += evt.damageDealt;
+                    levelStats.damageThisTurn += evt.damageDealt;
+                    handleCombo('brick_hit', evt.center);
+                    floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `${Math.floor(evt.damageDealt)}`, p.color(255, 255, 255), { size: 14, lifespan: 40, vel: p.createVector(0, -0.5) }));
                     
-                    if(event.coinsDropped > 0) {
-                        const equipmentForCoins = getActiveEquipmentForBallType(ballsInPlay.length > 0 ? ballsInPlay[0].type : state.selectedBallType);
-                        const coinBoost = equipmentForCoins.find(item => item.id === 'coin_boost');
-                        
-                        let totalCoinsDropped = event.coinsDropped;
+                    if(evt.coinsDropped > 0) {
+                        let totalCoinsDropped = evt.coinsDropped;
                         if (state.isGoldenTurn) {
                             let coinMultiplier = 2.0;
                             if (state.skillTreeState['golden_shot_coin_1']) coinMultiplier += 0.5;
@@ -725,94 +782,46 @@ export const sketch = (p, state) => {
                             if (state.skillTreeState['golden_shot_coin_3']) coinMultiplier += 0.5;
                             totalCoinsDropped = Math.floor(totalCoinsDropped * coinMultiplier);
                         }
-
-                        let bonusCoins = 0;
-                        if (coinBoost) {
-                            state.coinsForDuplication += totalCoinsDropped;
-                            while (state.coinsForDuplication >= coinBoost.value) {
-                                state.coinsForDuplication -= coinBoost.value;
-                                bonusCoins++;
-                            }
-                        }
                         
-                        const finalCoins = totalCoinsDropped + bonusCoins;
-                        coins += finalCoins;
-                        levelStats.coinsCollected += finalCoins;
+                        coins += totalCoinsDropped;
+                        levelStats.coinsCollected += totalCoinsDropped;
                         sounds.coin();
-                        
-                        let coinText = `+${totalCoinsDropped}`;
-                        if (bonusCoins > 0) coinText += ` (+${bonusCoins})`;
-                        floatingTexts.push(new FloatingText(p, event.center.x, event.center.y, coinText, p.color(255, 223, 0)));
+                        event.dispatch('CoinCollected', { amount: totalCoinsDropped, ball: evt.source });
 
+                        floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${totalCoinsDropped}`, p.color(255, 223, 0)));
                         const canvasRect = p.canvas.getBoundingClientRect();
-                        ui.animateCoinParticles(canvasRect.left + event.center.x, canvasRect.top + event.center.y, finalCoins);
+                        ui.animateCoinParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, totalCoinsDropped);
                     }
-                    if(event.gemsDropped > 0) {
-                        state.playerGems += event.gemsDropped;
-                        state.lifetimeGems += event.gemsDropped;
+
+                    if(evt.gemsDropped > 0) {
+                        state.playerGems += evt.gemsDropped;
+                        state.lifetimeGems += evt.gemsDropped;
                         sounds.gemCollect();
-                        floatingTexts.push(new FloatingText(p, event.center.x, event.center.y, `+${event.gemsDropped}`, p.color(0, 229, 255)));
+                        floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.gemsDropped}`, p.color(0, 229, 255)));
                         const canvasRect = p.canvas.getBoundingClientRect();
-                        ui.animateGemParticles(canvasRect.left + event.center.x, canvasRect.top + event.center.y, event.gemsDropped);
+                        ui.animateGemParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.gemsDropped);
                     }
-                    particles.push(...createBrickHitVFX(p, event.center.x, event.center.y, event.color));
-                    sounds.brickHit(p, event.totalLayers);
+                    particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
+                    sounds.brickHit(p, evt.totalLayers);
                     triggerShake(2, 5);
 
-                    const sourceBall = event.source;
-                    if (sourceBall instanceof Ball || sourceBall instanceof MiniBall) {
-                        const equipmentSourceType = (sourceBall instanceof MiniBall) ? sourceBall.parentType : sourceBall.type;
-                        const equipmentOnHit = getActiveEquipmentForBallType(equipmentSourceType);
-                        
-                        // Reset Overcharge Core
-                        if (equipmentOnHit.find(item => item.id === 'ramping_damage')) {
-                            state.rampingDamage = 0;
-                            state.rampingDamageTimer = 0;
-                            state.overchargeParticles = [];
-                        }
-                    
-                        equipmentOnHit.forEach(item => {
-                            if (item.id === 'healer_leech' && event.brickOverlay === 'healer') {
-                                if (ballsInPlay.length > 0 && !ballsInPlay[0].isDying) {
-                                    sharedBallStats.hp = Math.min(sharedBallStats.maxHp, sharedBallStats.hp + item.value);
-                                    sounds.ballHeal();
-                                    if (event.source && event.source.pos && typeof event.source.radius === 'number') {
-                                        leechHealVFXs.push(new LeechHealVFX(p, event.source.pos.x, event.source.pos.y, event.source.radius));
-                                    }
-                                }
-                            }
-                        });
-                    }
-
-                    if (state.wallExplosionCharge > 0) {
-                        const activeBallType = ballsInPlay.length > 0 ? ballsInPlay[0].type : state.selectedBallType;
-                        const equipment = getActiveEquipmentForBallType(activeBallType);
-                        const wallExplosionItem = equipment.find(item => item.id === 'wall_explosion');
-                        const radiusTiles = wallExplosionItem ? wallExplosionItem.config.radiusTiles : 2;
-                        explode(event.center, board.gridUnitSize * radiusTiles, state.wallExplosionCharge, 'wall_capacitor');
-                        state.wallExplosionCharge = 0;
-                    }
-
-                    if (event.source instanceof Object && event.source.type !== 'projectile' && event.source.type !== 'miniball' && event.source.type !== 'giant') {
-                        handleCombo();
-                    }
-                    if ((event.source.type === 'piercing' || event.source.type === 'giant') && event.source.isDying) {
-                        event.source.isDead = true;
-                        particles.push(...createBallDeathVFX(p, event.source.pos.x, event.source.pos.y));
+                    if ((evt.source.type === 'piercing' || evt.source.type === 'giant') && evt.source.isDying) {
+                        evt.source.isDead = true;
+                        particles.push(...createBallDeathVFX(p, evt.source.pos.x, evt.source.pos.y));
                         sounds.ballDeath();
                     }
                     
-                    if(event.isBroken) {
+                    if(evt.isBroken) {
                         sounds.brickBreak();
-                        particles.push(...createBrickHitVFX(p, event.center.x, event.center.y, event.color));
+                        particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
                     }
-                    if (event.events && event.events.length > 0) eventQueue.push(...event.events);
+                    if (evt.events && evt.events.length > 0) eventQueue.push(...evt.events);
                     break;
                  case 'explode_mine':
-                    explode(event.pos, board.gridUnitSize * BRICK_STATS.mine.radiusTiles, BRICK_STATS.mine.damage, 'mine');
+                    explode(evt.pos, board.gridUnitSize * BRICK_STATS.mine.radiusTiles, BRICK_STATS.mine.damage, 'mine');
                     break;
                  case 'dying_ball_death':
-                    particles.push(...createBallDeathVFX(p, event.pos.x, event.pos.y));
+                    particles.push(...createBallDeathVFX(p, evt.pos.x, evt.pos.y));
                     sounds.ballDeath();
                     break;
             }
@@ -823,11 +832,20 @@ export const sketch = (p, state) => {
     function triggerShake(amount, duration) { shakeAmount = Math.max(shakeAmount, amount); shakeDuration = Math.max(shakeDuration, duration); }
     
     function explode(pos, radius, damage, source = 'ball') {
+        let finalDamage;
+        if (source === 'ball') {
+            finalDamage = state.upgradeableStats.powerExplosionDamage;
+        } else if (source === 'chain-reaction' || source === 'mine' || source === 'wall_capacitor' || source === 'homing_explode') {
+            finalDamage = damage; // Use damage passed in for these types
+        } else { // Brick explosion
+            finalDamage = state.upgradeableStats.explosiveBrickDamage;
+        }
+
         const activeBallType = ballsInPlay.length > 0 ? ballsInPlay[0].type : state.selectedBallType;
         const equipment = getActiveEquipmentForBallType(activeBallType);
         const blastAmp = equipment.find(item => item.id === 'explosion_radius');
         if (blastAmp) {
-            damage *= blastAmp.value.damageMult;
+            finalDamage *= blastAmp.value.damageMult;
             radius += blastAmp.value.radiusBonusTiles * board.gridUnitSize;
         }
 
@@ -837,15 +855,6 @@ export const sketch = (p, state) => {
         for (let i = 0; i < 50; i++) particles.push(new Particle(p, pos.x, pos.y, explosionColor, p.random(5, 15), { lifespan: 60, size: p.random(3, 6) }));
         sounds.explosion();
         triggerShake(4, 12);
-        
-        let finalDamage = damage;
-        if (source === 'ball') {
-            finalDamage = state.upgradeableStats.powerExplosionDamage;
-        } else if (source === 'chain-reaction' || source === 'mine' || source === 'wall_capacitor' || source === 'homing_explode') {
-            finalDamage = damage; // Use damage passed in for these types
-        } else { // Brick explosion
-            finalDamage = state.upgradeableStats.explosiveBrickDamage;
-        }
     
         const hitBricks = new Set();
         const minC = Math.max(0, Math.floor((pos.x - radius - board.genX) / board.gridUnitSize));
@@ -914,7 +923,8 @@ export const sketch = (p, state) => {
 
     function handleCombo(type, pos) { 
         if (isGiantBallTurn || state.mainLevel < UNLOCK_LEVELS.COMBO_MINES) return; 
-        combo++; 
+        combo++;
+        event.dispatch('ComboAdded', { newComboCount: combo });
         maxComboThisTurn = p.max(maxComboThisTurn, combo);
         
         if (ballsInPlay.length > 0) {
@@ -929,10 +939,6 @@ export const sketch = (p, state) => {
     }
 
     function processBrokenBricks(lastBrickHitEvent) {
-        const activeBallType = ballsInPlay.length > 0 ? ballsInPlay[0].type : state.selectedBallType;
-        const equipment = getActiveEquipmentForBallType(activeBallType);
-        const vampire = equipment.find(item => item.id === 'vampire');
-        
         let chainReaction = true;
         while (chainReaction) {
             chainReaction = false;
@@ -940,13 +946,7 @@ export const sketch = (p, state) => {
                 for (let r = 0; r < board.rows; r++) {
                     const brick = bricks[c][r];
                     if (brick && brick.isBroken()) {
-                        if (vampire && ballsInPlay.length > 0 && !ballsInPlay[0].isDying) {
-                            sharedBallStats.hp = Math.min(sharedBallStats.maxHp, sharedBallStats.hp + vampire.value);
-                            sounds.ballHeal();
-                            if (ballsInPlay.length > 0) {
-                                leechHealVFXs.push(new LeechHealVFX(p, ballsInPlay[0].pos.x, ballsInPlay[0].pos.y, ballsInPlay[0].radius));
-                            }
-                        }
+                        event.dispatch('BrickDestroyed', { brick: brick, sourceBall: lastBrickHitEvent?.source });
 
                         const brickPos = brick.getPixelPos(board);
                         createSplat(p, splatBuffer, brickPos.x + brick.size / 2, brickPos.y + brick.size / 2, brick.getColor(), board.gridUnitSize);
@@ -1056,8 +1056,8 @@ export const sketch = (p, state) => {
         } 
     }
 
-    p.mousePressed = (event) => {
-        if (p.isModalOpen || event.target !== p.canvas) return;
+    p.mousePressed = (evt) => {
+        if (p.isModalOpen || evt.target !== p.canvas) return;
         
         if (state.isDebugView) {
             const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
@@ -1078,11 +1078,9 @@ export const sketch = (p, state) => {
             if (sharedBallStats.uses > 0) {
                 sharedBallStats.uses--;
                 const activeBallType = ballsInPlay[0].type;
-                const equipmentPowerup = getActiveEquipmentForBallType(activeBallType);
-                const isBrickSpawnPowerup = activeBallType === 'brick';
         
                 // --- Step 1: Handle Brick Spawning FIRST if applicable ---
-                if (isBrickSpawnPowerup) {
+                if (activeBallType === 'brick') {
                     for (const ball of ballsInPlay) {
                         const effect = ball.usePowerUp(board, true)?.effect;
                         if (effect && effect.type === 'spawn_bricks') {
@@ -1090,65 +1088,9 @@ export const sketch = (p, state) => {
                         }
                     }
                 }
-        
-                // --- Step 2: Apply all equipment effects ---
-                equipmentPowerup.forEach(item => {
-                    if (item.id === 'powerup_invulnerability') {
-                        state.invulnerabilityTimer = Math.max(state.invulnerabilityTimer, item.value * 60);
-                    }
-                });
-        
-                const minePower = equipmentPowerup.find(item => item.id === 'mine_power');
-                if (minePower) {
-                    const minesToSpawn = minePower.value;
-                    let eligibleBricks = [];
-                    for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) if (bricks[c][r] && bricks[c][r].type === 'normal' && !bricks[c][r].overlay) eligibleBricks.push(bricks[c][r]);
-                    p.shuffle(eligibleBricks, true);
-                    for (let i = 0; i < Math.min(minesToSpawn, eligibleBricks.length); i++) eligibleBricks[i].overlay = 'mine';
-                    const minesLeft = minesToSpawn - Math.min(minesToSpawn, eligibleBricks.length);
-                    if (minesLeft > 0) {
-                        let emptyCoords = [];
-                        for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) if (!bricks[c][r]) emptyCoords.push({ c, r });
-                        p.shuffle(emptyCoords, true);
-                        for (let i = 0; i < Math.min(minesLeft, emptyCoords.length); i++) {
-                            const spot = emptyCoords[i];
-                            const newBrick = new Brick(p, spot.c - 6, spot.r - 6, 'normal', 10, board.gridUnitSize);
-                            newBrick.overlay = 'mine';
-                            bricks[spot.c][spot.r] = newBrick;
-                        }
-                    }
-                    sounds.brickSpawn();
-                }
-        
-                const taxReturn = equipmentPowerup.find(item => item.id === 'tax_return');
-                if (taxReturn) {
-                    coins += taxReturn.value;
-                    sounds.coin();
 
-                    const ball = ballsInPlay[0];
-                    const canvasRect = p.canvas.getBoundingClientRect();
-                    const screenX = canvasRect.left + ball.pos.x;
-                    const screenY = canvasRect.top + ball.pos.y;
-                    ui.animateCoinParticles(screenX, screenY, taxReturn.value);
-                    
-                    const hpToAdd = taxReturn.config.brickHpBuff;
-                    const radius = board.gridUnitSize * taxReturn.config.brickHpBuffRadiusTiles;
-                    for (let c = 0; c < board.cols; c++) {
-                        for (let r = 0; r < board.rows; r++) {
-                            const brick = bricks[c][r];
-                            if (brick) {
-                                const brickPos = brick.getPixelPos(board);
-                                const centerPos = p.createVector(brickPos.x + (brick.size * brick.widthInCells) / 2, brickPos.y + (brick.size * brick.heightInCells) / 2);
-                                if (p.dist(ball.pos.x, ball.pos.y, centerPos.x, centerPos.y) < radius) {
-                                    const isMerged = brick.widthInCells > 1 || brick.heightInCells > 1;
-                                    const healthCap = isMerged ? 600 : 200;
-                                    brick.health = Math.min(healthCap, brick.health + hpToAdd);
-                                    brick.maxHealth = Math.min(healthCap, brick.maxHealth + hpToAdd);
-                                }
-                            }
-                        }
-                    }
-                }
+                // --- Step 2: Dispatch PowerUpUsed event for equipment to handle ---
+                event.dispatch('PowerUpUsed', { ball: ballsInPlay[0], powerUpType: activeBallType });
         
                 // --- Step 3: Apply ball's own power-up (non-brick spawning part) ---
                 const powerUpTemplate = ballsInPlay[0].usePowerUp(board, true);
@@ -1218,7 +1160,7 @@ export const sketch = (p, state) => {
             endAimPos.set(p.mouseX, p.mouseY);
         }
     };
-    p.mouseReleased = () => { 
+    p.mouseReleased = (evt) => { 
         if (isAiming && ballsInPlay.length > 0) { 
             const ball = ballsInPlay[0];
             ghostBalls = [];
@@ -1244,6 +1186,9 @@ export const sketch = (p, state) => {
                         return;
                     }
                 }
+                
+                // --- DISPATCH TURN START EVENT ---
+                event.dispatch('TurnStart', { ball });
 
                 const equipment = getActiveEquipmentForBallType(ball.type);
                 const overflow = equipment.find(item => item.id === 'overflow');
@@ -1255,9 +1200,6 @@ export const sketch = (p, state) => {
                     ball.overflowApplied = true;
                     state.overflowHealCharges = overflow.config.buffingHits;
                 }
-                const phaser = equipment.find(item => item.id === 'phaser');
-                if (phaser) state.phaserCharges = phaser.value;
-
 
                 let speedMultiplier = 1.0;
                 const slowBall = equipment.find(item => item.id === 'slow_ball');
@@ -1281,9 +1223,9 @@ export const sketch = (p, state) => {
             isAiming = false; 
         } 
     };
-    p.touchStarted = (event) => { if(event.target!==p.canvas)return; if(p.touches.length>0)p.mousePressed(event); return false; };
-    p.touchMoved = (event) => { if(event.target!==p.canvas)return; if(p.touches.length>0)p.mouseDragged(); if(isAiming)return false; };
-    p.touchEnded = (event) => { if(event.target!==p.canvas)return; p.mouseReleased(); return false; };
+    p.touchStarted = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mousePressed(evt); return false; };
+    p.touchMoved = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mouseDragged(); if(isAiming)return false; };
+    p.touchEnded = (evt) => { if(evt.target!==p.canvas)return; p.mouseReleased(); return false; };
     
     function spawnHomingProjectile(position, item = null) {
         if (!position) {
@@ -1445,6 +1387,7 @@ export const sketch = (p, state) => {
             } else {
                 gameState = 'aiming';
             }
+            
             // Reset and re-roll for Golden Turn for the *next* turn
             if (state.skillTreeState['unlock_golden_shot']) {
                 state.isGoldenTurn = p.random() < 0.1;

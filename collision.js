@@ -3,7 +3,8 @@
 import { Ball, MiniBall } from './ball.js';
 import { calculateBallDamage } from './ball.js';
 import { sounds } from './sfx.js';
-import { BALL_STATS } from './balancing.js';
+import { BALL_STATS, BRICK_STATS } from './balancing.js';
+import * as event from './eventManager.js';
 
 export function checkCollisions(p, b, board, bricks, combo, state) {
     let hitEvents = [];
@@ -12,6 +13,17 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
     const minR = Math.max(0, Math.floor((b.pos.y - b.radius - board.genY) / board.gridUnitSize));
     const maxR = Math.min(board.rows - 1, Math.ceil((b.pos.y + b.radius - board.genY) / board.gridUnitSize));
     
+    // Find all shield generators once per collision check for efficiency
+    const shieldGenerators = [];
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && brick.type === 'shieldGen' && !shieldGenerators.includes(brick)) {
+                shieldGenerators.push(brick);
+            }
+        }
+    }
+
     for (let c = minC; c <= maxC; c++) {
         for (let r = minR; r <= maxR; r++) {
             const brick = bricks[c][r];
@@ -31,6 +43,7 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                     }
                     const hitResult = brick.hit(BALL_STATS.types.giant.baseDamage, b, board);
                     if (hitResult) {
+                        event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
                         hitEvents.push({ type: 'brick_hit', ...hitResult });
                         b.damageDealtForHpLoss += hitResult.damageDealt;
                         if (b.damageDealtForHpLoss >= 100) {
@@ -54,6 +67,30 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                 if (b.isGhost && b.type === 'giant') continue;
                 if (b instanceof Ball && !b.isGhost) b.addHitToHistory();
                 
+                const sourceBall = b;
+                let equipmentSourceType;
+                if (sourceBall instanceof MiniBall) {
+                    equipmentSourceType = sourceBall.parentType;
+                } else if (sourceBall instanceof Ball) {
+                    equipmentSourceType = sourceBall.type;
+                }
+                const equipment = state.ballEquipment[equipmentSourceType]?.filter(Boolean) || [];
+
+                const phaserItem = equipment.find(e => e.id === 'phaser');
+                if ( ((b.type === 'piercing' && b.isPiercing) || (phaserItem && state.phaserCharges > 0 && b instanceof Ball)) && b.piercedBricks.has(brick) ) {
+                    continue;
+                }
+
+                if (b.type === 'piercing' && b.isPiercing) {
+                    if (b.piercedBricks.has(brick)) continue;
+                    b.piercedBricks.add(brick);
+                    b.piercingContactsLeft--;
+                    if (b.piercingContactsLeft <= 0) b.isPiercing = false;
+                    continue; 
+                }
+                
+                const isOnCooldown = b.brickHitCooldowns.has(brick);
+
                 if (state.overflowHealCharges > 0 && b instanceof Ball) {
                     const damage = calculateBallDamage(b, combo, state);
                     brick.buffHealth(damage);
@@ -61,7 +98,8 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                     sounds.brickHeal();
                     const center = brick.getPixelPos(board).add(brick.size / 2, brick.size / 2);
                     
-                    if (state.phaserCharges > 0 && b instanceof Ball) {
+                    if (phaserItem && state.phaserCharges > 0 && b instanceof Ball) {
+                        b.piercedBricks.add(brick);
                         state.phaserCharges--;
                     } else {
                         const brickPos = brick.getPixelPos(board);
@@ -90,53 +128,21 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                     return hitEvents; // Prevent fallthrough
                 }
                 
-                const sourceBall = b;
-                let equipmentSourceType;
-                if (sourceBall instanceof MiniBall) {
-                    equipmentSourceType = sourceBall.parentType;
-                } else if (sourceBall instanceof Ball) {
-                    equipmentSourceType = sourceBall.type;
-                }
-                const equipment = state.ballEquipment[equipmentSourceType]?.filter(Boolean) || [];
-
                 const executioner = equipment.find(e => e.id === 'executioner');
                 if (executioner && brick.health <= executioner.value && !b.isGhost && brick.type !== 'goal') {
                     const hitResult = brick.hit(brick.health, b, board);
                     if (hitResult) {
                         hitResult.brickOverlay = brick.overlay;
+                        if (b instanceof MiniBall) {
+                            event.dispatch('MiniBallHitBrick', { miniBall: b, brick, hitResult, combo });
+                        } else {
+                            event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
+                        }
                         hitEvents.push({ type: 'brick_hit', ...hitResult });
                     }
                 } else {
-                    if (b.type === 'piercing' && b.isPiercing) {
-                        if (b.piercedBricks.has(brick)) continue;
+                    if (phaserItem && state.phaserCharges > 0 && b instanceof Ball) {
                         b.piercedBricks.add(brick);
-                        b.piercingContactsLeft--;
-                        if (b.piercingContactsLeft <= 0) b.isPiercing = false;
-                        continue; 
-                    }
-                    
-                    const isOnCooldown = b.brickHitCooldowns.has(brick);
-
-                    if (!b.isGhost && !isOnCooldown) {
-                        const damage = calculateBallDamage(b, combo, state);
-                        const hitResult = brick.hit(damage, b, board);
-                        if (hitResult) {
-                            hitResult.brickOverlay = brick.overlay;
-                            hitEvents.push({ type: 'brick_hit', ...hitResult });
-                        }
-                        b.brickHitCooldowns.set(brick, 3);
-                        
-                        // Universal Impact Distributor logic
-                        if (b instanceof Ball) {
-                            const impactDistributor = equipment.find(item => item.id === 'impact_distributor');
-                            if (impactDistributor) {
-                                const event = b.takeDamage(0, 'brick');
-                                if (event) hitEvents.push(event);
-                            }
-                        }
-                    }
-                    
-                    if (state.phaserCharges > 0 && b instanceof Ball) {
                         state.phaserCharges--;
                     } else {
                         const brickCenterX = brickPos.x + brickWidth / 2;
@@ -180,9 +186,49 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                         if (b instanceof Ball) { b.lastHit = { target: 'brick', side: side }; }
                     }
     
+                    if (!b.isGhost && !isOnCooldown) {
+                        
+                        let damageMultiplier = 1.0;
+                        if (brick.type !== 'shieldGen') { // Shield generators cannot be shielded
+                             for (const shieldGen of shieldGenerators) {
+                                const shieldGenPos = shieldGen.getPixelPos(board).add(shieldGen.size/2, shieldGen.size/2);
+                                const brickCenterPos = brick.getPixelPos(board).add(brickWidth / 2, brickHeight / 2);
+                                
+                                const auraRadius = board.gridUnitSize * BRICK_STATS.shieldGen.auraRadiusTiles;
+                                const distSq = p.pow(shieldGenPos.x - brickCenterPos.x, 2) + p.pow(shieldGenPos.y - brickCenterPos.y, 2);
+                                
+                                if (distSq <= p.pow(auraRadius, 2)) {
+                                    damageMultiplier *= BRICK_STATS.shieldGen.damageReduction;
+                                    break; // Damage reduction does not stack, one is enough
+                                }
+                            }
+                        }
+
+                        const damage = calculateBallDamage(b, combo, state) * damageMultiplier;
+                        const hitResult = brick.hit(damage, b, board);
+                        if (hitResult) {
+                            hitResult.brickOverlay = brick.overlay;
+                            if (b instanceof MiniBall) {
+                                event.dispatch('MiniBallHitBrick', { miniBall: b, brick, hitResult, combo });
+                            } else {
+                                event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
+                            }
+                            hitEvents.push({ type: 'brick_hit', ...hitResult });
+                        }
+                        b.brickHitCooldowns.set(brick, 3);
+                        
+                        // Universal Impact Distributor logic
+                        if (b instanceof Ball) {
+                            const impactDistributor = equipment.find(item => item.id === 'impact_distributor');
+                            if (impactDistributor) {
+                                const damageEvent = b.takeDamage(0, 'brick');
+                                if (damageEvent) hitEvents.push(damageEvent);
+                            }
+                        }
+                    }
                     if (!b.isGhost && b.type === 'piercing' && !isOnCooldown) {
-                        const event = b.takeDamage(BALL_STATS.types.piercing.brickHitDamage, 'brick');
-                        if (event) hitEvents.push(event);
+                        const damageEvent = b.takeDamage(BALL_STATS.types.piercing.brickHitDamage, 'brick');
+                        if (damageEvent) hitEvents.push(damageEvent);
                     }
                 }
                 return hitEvents;

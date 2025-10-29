@@ -3,6 +3,7 @@
 import { Brick } from './brick.js';
 import { BRICK_STATS, UNLOCK_LEVELS } from './balancing.js';
 import { state } from './state.js';
+import * as event from './eventManager.js';
 
 function generateSingleFormulaPoints(p, cols, rows) {
     const formulas = [ 
@@ -25,7 +26,8 @@ function processBrickMerging(p, brickMatrix, hpPool, board) {
 
     const isEligible = (c, r) => {
         const brick = brickMatrix[c]?.[r];
-        return brick && (brick.type === 'normal' || brick.type === 'extraBall') && brick.health >= BRICK_STATS.maxHp.normal && !processedCoords.has(`${c},${r}`);
+        // Bricks with overlays cannot be merged, to prevent destroying special bricks like Zap Batteries.
+        return brick && !brick.overlay && (brick.type === 'normal' || brick.type === 'extraBall') && brick.health >= BRICK_STATS.maxHp.normal && !processedCoords.has(`${c},${r}`);
     };
 
     let potentialMerges = [];
@@ -131,7 +133,7 @@ export function generateLevel(p, settings, level, board) {
     // --- Step 3: Place Equipment Brick (if unlocked and chance succeeds) ---
     let equipmentBrickSpawned = false;
     if (state.mainLevel >= UNLOCK_LEVELS.EQUIPMENT && p.random() < state.equipmentBrickSpawnChance) {
-        state.equipmentBrickSpawnChance = settings.equipmentBrickChancePerLevel; // Reset
+        state.equipmentBrickSpawnChance = settings.equipmentBrickInitialChance; // Reset
         const possibleCenterCoords = [];
         for (let r = 1; r < rows - 1; r++) {
             for (let c = 1; c < cols - 1; c++) {
@@ -254,53 +256,270 @@ export function generateLevel(p, settings, level, board) {
         }
     });
 
-    // --- Step 6: Distribute HP Pool ---
+    // --- Step 6: Distribute HP Pool & Handle Special Brick Spawns ---
     let hpToDistribute = currentBrickHpPool - hpPlacedSoFar;
-    const normalAndExtraBallBricks = [];
-    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
-        const b = brickMatrix[c][r];
-        if (b && (b.type === 'normal' || b.type === 'extraBall')) normalAndExtraBallBricks.push(b);
+    let woolBrickGraphCoords = [];
+
+    // --- 6a: Initial WoolBrick Spawn ---
+    const woolSpawnChance = Math.min(0.65, level * 0.03);
+    if (p.random() < woolSpawnChance) {
+        const woolPoints = new Set(); // Use a Set to avoid duplicates
+        const isHorizontal = p.random() > 0.5;
+        const length = p.floor(p.random(5, 9));
+        
+        if (isHorizontal) {
+            const amplitude = p.random(1, 3);
+            const frequency = p.random(0.5, 1.5);
+            const startC = p.floor(p.random(0, cols - length));
+            const startR = p.floor(p.random(amplitude, rows - 1 - amplitude));
+            
+            for (let i = 0; i < length; i++) {
+                const c = startC + i;
+                const r = Math.round(startR + amplitude * p.sin(i * frequency));
+                if (c >= 0 && c < cols && r >= 0 && r < rows) {
+                    woolPoints.add(`${c},${r}`);
+                }
+            }
+        } else { // Vertical wave
+            const amplitude = p.random(1, 3);
+            const frequency = p.random(0.5, 1.5);
+            const startR = p.floor(p.random(0, rows - length));
+            const startC = p.floor(p.random(amplitude, cols - 1 - amplitude));
+            
+            for (let i = 0; i < length; i++) {
+                const r = startR + i;
+                const c = Math.round(startC + amplitude * p.sin(i * frequency));
+                if (c >= 0 && c < cols && r >= 0 && r < rows) {
+                    woolPoints.add(`${c},${r}`);
+                }
+            }
+        }
+
+        for (const posStr of woolPoints) {
+            const [c, r] = posStr.split(',').map(Number);
+            const brickToReplace = brickMatrix[c]?.[r];
+            if (brickToReplace && brickToReplace.type === 'normal') {
+                 const cost = BRICK_STATS.wool.costPer10Hp;
+                 const refund = brickToReplace.maxHealth;
+                 if (hpToDistribute + refund >= cost) {
+                     hpToDistribute = hpToDistribute + refund - cost;
+                     const woolBrick = new Brick(p, c - 6, r - 6, 'wool', 10, gridUnitSize);
+                     brickMatrix[c][r] = woolBrick;
+                     woolBrickGraphCoords.push({c, r});
+                 }
+            }
+        }
     }
+    
+    // --- 6b: Zapper System Spawn ---
+    const zapperSpawnChance = Math.min(0.65, level * 0.03);
+    if (p.random() < zapperSpawnChance) {
+        const potentialHosts = [];
+        for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+            const b = brickMatrix[c][r];
+            if (b && b.type === 'normal' && !b.overlay) potentialHosts.push(b);
+        }
+        p.shuffle(potentialHosts, true);
+        
+        let zapperPlaced = false;
+        for (const zapperHost of potentialHosts) {
+            if (zapperPlaced) break;
+            const zapperCost = BRICK_STATS.zapper.baseCost + zapperHost.health * (BRICK_STATS.zapper.costPer10Hp / 10);
+            const zapperHostPos = zapperHost.getPixelPos(board);
+            const initialRadiusSq = p.pow(board.gridUnitSize * 1.5, 2);
+
+            for (const batteryHost of potentialHosts) {
+                if (batteryHost === zapperHost) continue;
+                const batteryHostPos = batteryHost.getPixelPos(board);
+                const distSq = p.pow(zapperHostPos.x - batteryHostPos.x, 2) + p.pow(zapperHostPos.y - batteryHostPos.y, 2);
+                if (distSq > initialRadiusSq) {
+                    const batteryCost = batteryHost.health * (BRICK_STATS.zap_battery.costPer10Hp / 10);
+                    const totalCost = zapperCost + batteryCost;
+                    if (hpToDistribute >= totalCost) {
+                        hpToDistribute -= totalCost;
+                        zapperHost.overlay = 'zapper';
+                        batteryHost.overlay = 'zap_battery';
+                        zapperPlaced = true;
+                        break; 
+                    }
+                }
+            }
+        }
+    }
+
+
+    // --- 6c: HP Distribution Loop with Overlay Spawns ---
+    let placeShieldGenNext = false;
     while (hpToDistribute > 0) {
-        let eligibleBricksForBuff = normalAndExtraBallBricks;
+        let normalAndExtraBallBricks = [];
+        for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+            const b = brickMatrix[c][r];
+            if (b && (b.type === 'normal' || b.type === 'extraBall')) normalAndExtraBallBricks.push(b);
+        }
+        
+        let eligibleBricksForBuff = normalAndExtraBallBricks.filter(b => {
+            const isMerged = b.widthInCells > 1 || b.heightInCells > 1;
+            let cap = isMerged ? BRICK_STATS.maxHp.long : BRICK_STATS.maxHp.normal;
+            if(b.type === 'wool') cap = BRICK_STATS.maxHp.wool;
+            if(b.type === 'shieldGen') cap = BRICK_STATS.maxHp.shieldGen;
+            return b.health < cap;
+        });
+
         let eligibleBricksForOverlay = normalAndExtraBallBricks.filter(b => b.type === 'normal' && !b.overlay);
-        if (eligibleBricksForBuff.length === 0) break;
+        if (eligibleBricksForBuff.length === 0 && !placeShieldGenNext) break;
+        
         const rand = p.random();
         let converted = false;
+        
         if (eligibleBricksForOverlay.length > 0) {
-            const brickToOverlay = eligibleBricksForOverlay[p.floor(p.random(eligibleBricksForOverlay.length))];
+            const brickToOverlay = p.random(eligibleBricksForOverlay);
             const builderCost = BRICK_STATS.builder.baseCost + brickToOverlay.health * (BRICK_STATS.builder.costPer10Hp / 10);
             const healerCost = BRICK_STATS.healer.baseCost + brickToOverlay.health * (BRICK_STATS.healer.costPer10Hp / 10);
+
+            let overlayPlaced = null;
             if (rand < settings.builderBrickChance && hpToDistribute >= builderCost) {
                 brickToOverlay.overlay = 'builder';
                 hpToDistribute -= builderCost;
                 converted = true;
+                overlayPlaced = 'builder';
             } else if (rand < settings.builderBrickChance + settings.healerBrickChance && hpToDistribute >= healerCost) {
                 brickToOverlay.overlay = 'healer';
                 hpToDistribute -= healerCost;
                 converted = true;
+                overlayPlaced = 'healer';
+            }
+
+            if (overlayPlaced) {
+                if (p.random() < 0.1) placeShieldGenNext = true;
+                if (p.random() < 0.05) { // 5% chance to spawn extra ZapBattery
+                    let zapperBrick = null, zapBatteries = [];
+                    for(let c=0;c<cols;c++) for(let r=0;r<rows;r++) {
+                        const b = brickMatrix[c][r];
+                        if(b) {
+                            if(b.overlay === 'zapper') zapperBrick = b;
+                            if(b.overlay === 'zap_battery') zapBatteries.push(b);
+                        }
+                    }
+                    if (zapperBrick) {
+                        const nextRadiusSq = p.pow(board.gridUnitSize * (1.5 + zapBatteries.length * 0.5), 2);
+                        const zapperPos = zapperBrick.getPixelPos(board);
+                        const potentialHosts = [];
+                        for(let c=0;c<cols;c++) for(let r=0;r<rows;r++) {
+                            const b = brickMatrix[c][r];
+                            if(b && b.type === 'normal' && !b.overlay) {
+                                const bPos = b.getPixelPos(board);
+                                if(p.pow(zapperPos.x-bPos.x,2)+p.pow(zapperPos.y-bPos.y,2) > nextRadiusSq) potentialHosts.push(b);
+                            }
+                        }
+                        if (potentialHosts.length > 0) {
+                            const host = p.random(potentialHosts);
+                            const cost = host.health * (BRICK_STATS.zap_battery.costPer10Hp / 10);
+                            if (hpToDistribute >= cost) {
+                                hpToDistribute -= cost;
+                                host.overlay = 'zap_battery';
+                            }
+                        }
+                    }
+                }
+                if (p.random() < 0.1 && woolBrickGraphCoords.length > 0) {
+                    let addedCount = 0;
+                    let attempts = 0;
+                    while(addedCount < 3 && attempts < 20) {
+                        attempts++;
+                        const anchor = p.random(woolBrickGraphCoords);
+                        const neighbors = [{c:0,r:-1},{c:0,r:1},{c:-1,r:0},{c:1,r:0}];
+                        p.shuffle(neighbors, true);
+                        let foundSpot = false;
+                        for (const n of neighbors) {
+                            const nc = anchor.c + n.c, nr = anchor.r + n.r;
+                            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) {
+                                const brickAtSpot = brickMatrix[nc][nr];
+                                if(brickAtSpot && brickAtSpot.type === 'normal') {
+                                    const cost = BRICK_STATS.wool.costPer10Hp, refund = brickAtSpot.maxHealth;
+                                    if (hpToDistribute + refund >= cost) {
+                                        hpToDistribute += refund - cost;
+                                        brickMatrix[nc][nr] = new Brick(p, nc - 6, nr - 6, 'wool', 10, gridUnitSize);
+                                        woolBrickGraphCoords.push({c: nc, r: nr});
+                                        addedCount++; foundSpot = true; break;
+                                    }
+                                }
+                            }
+                        }
+                        if(foundSpot) continue;
+                    }
+                    let buffsToApply = 3 - addedCount;
+                    while (buffsToApply > 0 && woolBrickGraphCoords.length > 0) {
+                        const woolCoord = p.random(woolBrickGraphCoords);
+                        const brick = brickMatrix[woolCoord.c][woolCoord.r];
+                        const cost = BRICK_STATS.wool.costPer10Hp;
+                        if (brick && brick.health < BRICK_STATS.maxHp.wool && hpToDistribute >= cost) {
+                            hpToDistribute -= cost;
+                            brick.buffHealth(10);
+                            buffsToApply--;
+                        } else { break; }
+                    }
+                }
             }
         }
+
         if (!converted) {
-            const brickToBuff = eligibleBricksForBuff[p.floor(p.random(eligibleBricksForBuff.length))];
-            const hpToAdd = 10;
-            const hpCost = brickToBuff.overlay ? hpToAdd * 2 : hpToAdd;
-            if (hpToDistribute >= hpCost && brickToBuff.health < BRICK_STATS.maxHp.normal) {
-                brickToBuff.health += hpToAdd;
-                brickToBuff.maxHealth += hpToAdd;
-                hpToDistribute -= hpCost;
+            if (placeShieldGenNext) {
+                const potentialTargets = normalAndExtraBallBricks.filter(b => b.type === 'normal' && !b.overlay);
+                if (potentialTargets.length > 0) {
+                    const brickToReplace = p.random(potentialTargets);
+                    const newHp = Math.min(BRICK_STATS.maxHp.shieldGen, brickToReplace.maxHealth);
+                    const cost = BRICK_STATS.shieldGen.baseCost + Math.max(0, Math.floor(newHp / 10) - 1) * BRICK_STATS.shieldGen.costPer10Hp;
+                    const refund = brickToReplace.maxHealth;
+                    if (hpToDistribute + refund >= cost) {
+                        hpToDistribute += refund - cost;
+                        const {c, r} = { c: brickToReplace.c + 6, r: brickToReplace.r + 6 };
+                        brickMatrix[c][r] = new Brick(p, c - 6, r - 6, 'shieldGen', newHp, gridUnitSize);
+                    }
+                }
+                placeShieldGenNext = false;
             } else {
-                const canBuffAny = eligibleBricksForBuff.some(b => {
-                    const cost = b.overlay ? 20 : 10;
-                    return hpToDistribute >= cost && b.health < BRICK_STATS.maxHp.normal;
-                });
-                if (!canBuffAny) break;
+                 if (eligibleBricksForBuff.length === 0) break;
+                 const brickToBuff = p.random(eligibleBricksForBuff);
+                 const hpToAdd = 10;
+                 const hpCost = brickToBuff.overlay ? hpToAdd * 2 : hpToAdd;
+                 if (hpToDistribute >= hpCost) {
+                     brickToBuff.buffHealth(hpToAdd);
+                     hpToDistribute -= hpCost;
+                 } else {
+                     const canBuffAny = eligibleBricksForBuff.some(b => hpToDistribute >= (b.overlay ? 20 : 10));
+                     if (!canBuffAny) break;
+                 }
             }
         }
     }
     
     // --- Step 7: Merge High-HP Bricks ---
     hpToDistribute = processBrickMerging(p, brickMatrix, hpToDistribute, board);
+
+    // --- Buff WoolBricks with remaining HP ---
+    if (hpToDistribute > 0 && woolBrickGraphCoords.length > 0) {
+        const woolBricksToBuff = [];
+        woolBrickGraphCoords.forEach(coord => {
+            const brick = brickMatrix[coord.c][coord.r];
+            if (brick && brick.type === 'wool') {
+                woolBricksToBuff.push(brick);
+            }
+        });
+
+        if (woolBricksToBuff.length > 0) {
+            let buffAttempts = 0;
+            const maxAttempts = hpToDistribute / BRICK_STATS.wool.costPer10Hp + woolBricksToBuff.length; // Failsafe
+            while (hpToDistribute >= BRICK_STATS.wool.costPer10Hp && buffAttempts < maxAttempts) {
+                const brickToBuff = p.random(woolBricksToBuff);
+                if (brickToBuff.health < BRICK_STATS.maxHp.wool) {
+                    brickToBuff.buffHealth(10);
+                    hpToDistribute -= BRICK_STATS.wool.costPer10Hp;
+                }
+                buffAttempts++;
+            }
+        }
+    }
+
 
     // --- Step 8: Spawn Special Cages (Optional) ---
     if (settings.ballCageBrickChance > 0) {
@@ -374,10 +593,16 @@ export function generateLevel(p, settings, level, board) {
     
     // --- Step 11: Finalization ---
     let goalBrickCount = 0;
+    const allBricks = new Set();
     for (let c = 0; c < cols; c++) {
         for (let r = 0; r < rows; r++) {
             const b = brickMatrix[c][r];
             if (b) {
+                if (!allBricks.has(b)) {
+                    event.dispatch('BrickSpawned', { brick: b, source: 'levelgen' });
+                    allBricks.add(b);
+                }
+
                 if (b.type === 'goal') goalBrickCount++;
                 if (b.maxCoins > 0) {
                     b.coinIndicatorPositions = [];
@@ -392,7 +617,11 @@ export function generateLevel(p, settings, level, board) {
     }
     if (goalBrickCount === 0 && placedGoalBricks.length === 0) {
        const spot = takeNextAvailableCoord();
-       if(spot) brickMatrix[spot.c][spot.r] = new Brick(p, spot.c - 6, spot.r - 6, 'goal', 10, gridUnitSize);
+       if(spot) {
+           const newBrick = new Brick(p, spot.c - 6, spot.r - 6, 'goal', 10, gridUnitSize);
+           brickMatrix[spot.c][spot.r] = newBrick;
+           event.dispatch('BrickSpawned', { brick: newBrick, source: 'levelgen_fallback' });
+       }
     }
     
     return { 

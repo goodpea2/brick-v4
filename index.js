@@ -5,6 +5,7 @@ import { initializeInput } from './input.js';
 import { state, applyAllUpgrades } from './state.js';
 import { sounds } from './sfx.js';
 import * as dom from './dom.js';
+import { initializeEquipmentManager } from './equipmentManager.js';
 
 let p5Instance;
 
@@ -40,9 +41,20 @@ document.addEventListener('DOMContentLoaded', () => {
         forceEndTurn: () => p5Instance?.forceEndTurn(),
         triggerGoldenShot: () => p5Instance?.triggerGoldenShot(),
         addFloatingText: (text, color, options, position) => p5Instance?.addFloatingText(text, color, options, position),
+
+        // New methods for equipmentManager
+        healBall: (amount) => p5Instance?.healBall(amount),
+        addCoins: (amount) => p5Instance?.addCoins(amount),
+        explode: (pos, radius, damage, source) => p5Instance?.explode(pos, radius, damage, source),
+        spawnHomingProjectile: (position, item) => p5Instance?.spawnHomingProjectile(position, item),
+        spawnWallBullets: (position, count, damage, velBefore, wallNormal) => p5Instance?.spawnWallBullets(position, count, damage, velBefore, wallNormal),
+        addProjectiles: (projs) => p5Instance?.addProjectiles(projs),
+        getBricks: () => p5Instance?.getBricks(),
+        getBoard: () => p5Instance?.getBoard(),
     };
 
     initializeInput(gameController, runCode);
+    initializeEquipmentManager(gameController);
     
     // Initialize sound volume from the UI slider's default value
     sounds.setMasterVolume(parseFloat(dom.volumeSlider.value));

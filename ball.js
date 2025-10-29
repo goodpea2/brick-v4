@@ -1,6 +1,7 @@
 // ball.js
 import { state } from './state.js';
 import { BALL_STATS } from './balancing.js';
+import * as event from './eventManager.js';
 
 let brickSprite;
 
@@ -248,11 +249,14 @@ export class MiniBall {
                 wallHit = true;
             }
             if (wallHit) {
+                // --- DISPATCH EVENT ---
+                event.dispatch('MiniBallHitWall', { miniBall: this, velBefore: velBeforeSteps });
+                // --- END DISPATCH ---
                 if (this.mainBallIsDead) {
                     this.isDead = true;
                     return hitEvents;
                 }
-                const event = {
+                const damageEvent = {
                     type: 'damage_taken',
                     source: 'miniball_wall',
                     ballType: this.parentType,
@@ -260,7 +264,7 @@ export class MiniBall {
                     position: this.pos.copy(),
                     velBefore: velBeforeSteps
                 };
-                if (event) hitEvents.push(event);
+                if (damageEvent) hitEvents.push(damageEvent);
                 break;
             }
         }
@@ -386,19 +390,23 @@ export class Ball {
             
             if (wallHit) {
                 if (!this.isGhost) this.addHitToHistory();
+                
+                this.piercedBricks.clear(); // Clear for both Piercing and Phaser
+                
+                // --- DISPATCH EVENT ---
+                event.dispatch('BallHitWall', { ball: this, wallNormal: wallNormal.normalize(), velBefore: velBeforeSteps });
+                // --- END DISPATCH ---
+
                 if (this.isDying && this.type !== 'giant') {
                     this.isDead = true;
                     hitEvents.push({ type: 'dying_ball_death', pos: this.pos.copy() });
                     break; 
                 }
-                if (this.isPiercing) {
-                    this.piercedBricks.clear();
-                }
-                const event = this.takeDamage(BALL_STATS.types[this.type].wallHitDamage, 'wall', this.pos);
-                if (event) {
-                    event.velBefore = velBeforeSteps;
-                    event.wallNormal = wallNormal.normalize();
-                    hitEvents.push(event);
+                const damageEvent = this.takeDamage(BALL_STATS.types[this.type].wallHitDamage, 'wall', this.pos);
+                if (damageEvent) {
+                    damageEvent.velBefore = velBeforeSteps;
+                    damageEvent.wallNormal = wallNormal.normalize();
+                    hitEvents.push(damageEvent);
                 }
                 break;
             }
@@ -411,9 +419,9 @@ export class Ball {
         if (this.isPiercing && source === 'brick') return null;
 
         const damageDealt = amount;
-        let event = { type: 'damage_taken', source, ballType: this.type, damageAmount: damageDealt, position: position.copy() };
+        let damageEvent = { type: 'damage_taken', source, ballType: this.type, damageAmount: damageDealt, position: position.copy() };
         
-        return event;
+        return damageEvent;
     }
 
 
@@ -671,7 +679,7 @@ export class Ball {
             buffer.noFill();
             buffer.stroke(auraColor);
             buffer.strokeWeight(3);
-            buffer.ellipse(this.pos.x, this.pos.y, auraRadius * 2);
+            buffer.ellipse(b.pos.x, b.pos.y, auraRadius * 2);
             
             if (buffer.frameCount % 3 === 0) {
                 for (let i = 0; i < 3; i++) {

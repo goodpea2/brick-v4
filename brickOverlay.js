@@ -3,6 +3,7 @@
 import { Shockwave, Particle } from './vfx.js';
 import { Brick } from './brick.js';
 import { BRICK_STATS } from './balancing.js';
+import * as event from './eventManager.js';
 
 function findBrickAt(bricks, c, r, board) {
     if (c >= 0 && c < board.cols && r >= 0 && r < board.rows) return bricks[c][r];
@@ -52,13 +53,8 @@ export function executeHealAction(p, board, bricks, healer, vfx, sounds) {
             if (dc === 0 && dr === 0) continue;
             const neighbor = findBrickAt(bricks, c + dc, r + dr, board);
             if (neighbor && BRICK_STATS.canReceiveHealing[neighbor.type]) {
-                const isMerged = neighbor.widthInCells > 1 || neighbor.heightInCells > 1;
-                const healthCap = isMerged ? BRICK_STATS.maxHp.long : BRICK_STATS.maxHp.normal;
                 
-                const healthToAdd = 10;
-                const newMaxHealth = p.min(healthCap, neighbor.maxHealth + healthToAdd);
-                neighbor.maxHealth = newMaxHealth;
-                neighbor.health = newMaxHealth; // Heal to full
+                neighbor.heal(10); // Use the correct heal method
 
                 const targetPos = neighbor.getPixelPos(board).add(neighbor.size / 2, neighbor.size / 2);
                 const sourcePos = healer.getPixelPos(board).add(healer.size / 2, healer.size / 2);
@@ -86,6 +82,10 @@ export function executeBuildAction(p, board, bricks, builder, vfx, sounds) {
             if (!brickAtPos) {
                 const newBrick = new Brick(p, currentC - 6, currentR - 6, 'normal', 10, board.gridUnitSize);
                 bricks[currentC][currentR] = newBrick;
+
+                // --- DISPATCH EVENT ---
+                event.dispatch('BrickSpawned', { brick: newBrick, source: 'builder' });
+                // --- END DISPATCH ---
                 
                 const targetPos = newBrick.getPixelPos(board).add(newBrick.size / 2, newBrick.size / 2);
                 const sourcePos = builder.getPixelPos(board).add(builder.size / 2, builder.size / 2);

@@ -298,6 +298,37 @@ export class LeechHealVFX {
     }
 }
 
+export class ZapperSparkle {
+    constructor(p, centerX, centerY, radius) {
+        this.p = p;
+        const angle = p.random(p.TWO_PI);
+        const r = p.random(radius);
+        this.pos = p.createVector(centerX + r * p.cos(angle), centerY + r * p.sin(angle));
+        this.lifespan = p.random(10, 20);
+        this.maxLifespan = this.lifespan;
+        this.len = p.random(3, 8);
+        this.angle = p.random(p.TWO_PI);
+    }
+    update() {
+        this.lifespan--;
+    }
+    isFinished() {
+        return this.lifespan <= 0;
+    }
+    draw() {
+        const p = this.p;
+        const alpha = p.map(this.lifespan, 0, this.maxLifespan, 0, 255);
+        p.push();
+        p.translate(this.pos.x, this.pos.y);
+        p.rotate(this.angle);
+        p.stroke(221, 160, 221, alpha); // Orchid color
+        p.strokeWeight(p.random(1, 2));
+        p.line(-this.len / 2, 0, this.len / 2, 0);
+        p.pop();
+    }
+}
+
+
 export function createSplat(p, splatBuffer, x, y, brickColor, gridUnitSize) { 
     if (!splatBuffer) return; 
     const darkerColor = p.lerpColor(brickColor, p.color(0), 0.3); 

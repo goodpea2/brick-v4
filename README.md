@@ -23,11 +23,15 @@ To ensure clear communication, here are the internal names for various game elem
     *   `explosive`: Orange brick that explodes when destroyed.
     *   `horizontalStripe` / `verticalStripe`: Red bricks that clear their row/column when destroyed.
     *   `ballCage`: A special brick that, when broken, releases a clone of the player's ball.
+    *   `wool`: A special pink brick that is immune to all indirect damage (explosions, line clears, etc).
+    *   `shieldGen`: A special blue, rounded brick that projects a damage-reduction aura to nearby bricks.
 
 *   **Brick Overlays:** (Applied to `normal` bricks)
     *   `builder`: Light blue `+` aura. Spawns/buffs bricks at the end of a turn.
     *   `healer`: Light green circular aura. Heals nearby bricks at the end of a turn.
     *   `mine`: Red circular aura. Explodes when hit by the ball.
+    *   `zapper`: Deep purple aura. Deals periodic damage to the ball if it's within range. Powered by Zap Batteries.
+    *   `zap_battery`: Deep purple `[+]`. Increases the range of the Zapper's aura.
 
 *   **Game States:**
     *   `aiming`: Player is aiming the ball.
@@ -62,6 +66,7 @@ New features are unlocked at the following levels:
 *   **Level 16:** Unlock the ability to purchase the **third Equipment Slot**.
 *   **Level 17:** Unlock `Ball Cage Brick` spawns in levels.
 *   **Level 18:** Unlock `HomingBall`.
+*   **Level 20:** Unlock **Special Bricks** (`WoolBrick` and `ShieldGenBrick`) which begin appearing in levels.
 
 ---
 
@@ -109,7 +114,7 @@ At Level 10, players unlock the Equipment system. This allows them to customize 
 *   **Hurt Missile**: Launches a homing projectile when taken enough damage.
 *   **Coin Duplicator**: For every few coins collected, gain an extra one.
 *   **Mine Cast**: Using a power-up also spawns several Mines on a random tile.
-*   **Phaser**: The first few hits cause damage without bouncing back.
+*   **Phaser**: The first few unique bricks hit in a single pass will be damaged and phased through without bouncing. This effect resets each time the ball hits a wall.
 *   **Zap Aura**: Deals constant damage in a small radius.
 *   **Last Stand**: Collecting XP Orbs builds up projectiles, unleashed when the ball is on its last health.
 *   **Impact Distributor**: Reduce damage taken from wall hits, increases damage taken from brick hits.
@@ -121,12 +126,51 @@ At Level 10, players unlock the Equipment system. This allows them to customize 
 
 ## Request Log (Latest First)
 
-### Aiming Preview Rework & Fix
+### Date: 2024-08-19
+
+**Features & Changes:**
+
+1.  **`Healer` Overlay Logic Clarification:**
+    *   The `Healer` overlay's behavior has been updated. It now adds a flat 10 HP to surrounding bricks each turn, allowing their health to go above their original maximum ("overheal").
+    *   The previous "heal-to-max" logic has been removed to allow for this continuous health buffing every turn.
+    *   Internal calculations for coin/gem drops were adjusted to correctly handle overhealed bricks.
+
+### Date: 2024-08-18
+
+**Features & Changes:**
+
+1.  **`Healer` Overlay Bug Fix:**
+    *   Corrected the behavior of the `Healer` overlay. It now properly restores 10 HP to surrounding bricks, up to their current maximum health.
+    *   Previously, it was incorrectly increasing their maximum health by 10 HP each turn, leading to unintended difficulty scaling.
+
+### Date: 2024-08-17
+
+**Features & Changes:**
+
+1.  **`WoolBrick` Generation Rework:**
+    *   **Placement:** `WoolBrick`s now spawn in single lines or waves instead of random clusters, making them less overwhelming and more predictable.
+    *   **Spawning:** The chance for additional `WoolBrick`s to spawn when a `Builder` or `Healer` overlay is created has been reduced to 10%.
+    *   **Health Buff:** Any leftover HP from the level's HP pool at the end of the generation process is now used to buff the health of existing `WoolBrick`s, making them tougher strategic targets.
+
+### Date: 2024-08-16
+
+**Features & Changes:**
+
+1.  **New Late-Game Bricks (Unlocked at Level 20):**
+    *   **`WoolBrick`**: A new light-pink brick that is completely immune to indirect damage sources like explosions, line clears, projectiles, and auras. It can only be damaged by a direct hit from the player's main ball or mini-balls. This brick is designed to counter "one-shot" area-of-effect strategies.
+    *   **`ShieldGenBrick`**: A new cyan, rounded brick that projects a 50% damage reduction aura to all bricks within a 2-tile radius, making it a high-priority target. The ShieldGenBrick itself is not affected by its own aura.
+
+2.  **Updated Level Generation:**
+    *   The level generation logic has been updated to incorporate these new bricks.
+    *   `WoolBrick`s spawn in connected clusters based on a level-scaling chance. More can be added when `Builder` or `Healer` overlays are created.
+    *   `ShieldGenBrick`s have a small chance to be placed on a brick that was about to be buffed, creating strategic choke points.
+
+### Date: 2024-08-15
 
 **Features & Changes:**
 
 1.  **Aiming Preview Rework:**
-    *   The aiming preview has been reworked for consistency. "Ghost balls" now spawn automatically every 20 frames while the player is aiming, independent of mouse movement.
+    *   The aiming preview has been reworked for consistency. "Ghost balls" now spawn automatically every 10 frames while the player is aiming, independent of mouse movement.
     *   The duration that these ghost balls last is now correctly determined by the "Aiming Length" shop upgrade (starting at 0.4 seconds).
 
 ### Date: 2024-08-15
@@ -235,7 +279,7 @@ At Level 10, players unlock the Equipment system. This allows them to customize 
     *   **PiercingBall Rebalance:** This ball has been significantly changed to create a high-risk, high-reward playstyle.
         *   **During Power-up:** The ball is now completely intangible. It phases through bricks without dealing damage and without incrementing the combo, acting as a purely strategic move.
         *   **Normal State:** When *not* using its power-up, the ball now takes 2 damage for every brick it hits. This makes it a fragile ball that requires careful aim to preserve.
-    *   **BrickBall Enhancement:** The `BrickBall`'s power-up can now destroy and replace `normal` bricks even if they have a `Builder`, `Healer`, or `Mine` overlay, increasing its utility.
+    *   **BrickBall Enhancement:** The `BrickBall`'s power-up ability can now destroy and replace `normal` bricks even if they have a `Builder`, `Healer`, or `Mine` overlay, increasing its utility.
 
 2.  **Visual Fixes:**
     *   **ExplosiveBall Visuals:** The special visuals for the `ExplosiveBall` (its pulsating red glow and orange outline) now correctly disappear once all of its power-up uses have been consumed, making it consistent with other ball types.
