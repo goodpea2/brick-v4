@@ -34,6 +34,13 @@ export const state = {
     
     // In-run State
     isGoldenTurn: false,
+    
+    // Editor State
+    isEditorMode: false,
+    editorTool: 'place',
+    editorObject: 'normal',
+    editorSelection: new Set(),
+    isDeselectingInEditor: false,
 
     // Equipment System State
     playerEquipment: [], // Array of equipment objects

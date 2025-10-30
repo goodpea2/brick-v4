@@ -18,7 +18,7 @@ let gameController = null;
  * @returns {Array} - An array of active equipment objects.
  */
 function getActiveEquipment(ball) {
-    if (!ball) return [];
+    if (!ball || ball.isGhost) return [];
     const type = ball.type === 'miniball' ? ball.parentType : ball.type;
     if (!type || !state.ballEquipment[type]) {
         return [];

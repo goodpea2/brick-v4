@@ -485,18 +485,19 @@ export class Brick {
                 p.push();
                 p.translate(cX, cY);
                 p.noStroke();
-                const glow = p.map(p.sin(p.frameCount * 0.1), -1, 1, 150, 255);
-                p.fill(148, 0, 211, glow); // Deep purple
-                const ellipseW = totalWidth * 0.25;
+                p.fill(148, 0, 211, 200); // Deep purple
+                const ellipseW = totalWidth * 0.4;
                 const ellipseH = totalWidth * 0.15;
                 const offset = totalWidth * 0.2;
-                const gap = totalWidth * 0.15;
                 // The 4 ellipses for the crosshair
-                p.rotate(p.radians(45));
-                p.ellipse(offset + gap, 0, ellipseW, ellipseH);
-                p.ellipse(-offset - gap, 0, ellipseW, ellipseH);
-                p.ellipse(0, offset + gap, ellipseH, ellipseW);
-                p.ellipse(0, -offset - gap, ellipseH, ellipseW);
+                p.ellipse(offset, 0, ellipseW, ellipseH);  // Right arm
+                p.ellipse(-offset, 0, ellipseW, ellipseH); // Left arm
+                p.ellipse(0, offset, ellipseH, ellipseW);  // Down arm
+                p.ellipse(0, -offset, ellipseH, ellipseW); // Up arm
+                // Central glow
+                const glow = p.map(p.sin(p.frameCount * 0.1), -1, 1, 150, 255);
+                p.fill(221, 160, 221, glow);
+                p.ellipse(0, 0, totalWidth * 0.25);
                 p.pop();
             }
          }

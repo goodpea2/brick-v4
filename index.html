@@ -254,6 +254,23 @@
     .settings-column {
         flex: 1;
     }
+    
+    .level-io-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin: 20px 0;
+    }
+    
+    .level-io-buttons .modal-action-button {
+        width: auto;
+        flex-grow: 1;
+        margin-top: 0;
+        background-color: var(--color-bg3);
+    }
+    .level-io-buttons .modal-action-button:hover {
+        background-color: var(--color-bg);
+    }
 
 
     .form-group {
@@ -303,6 +320,19 @@
       background-color: #555;
       color: #999;
       cursor: not-allowed;
+    }
+    
+    .modal-content textarea {
+        width: 100%;
+        min-height: 200px;
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        border: 1px solid var(--color-sidebar-border);
+        border-radius: 4px;
+        padding: 10px;
+        font-family: 'Inconsolata', monospace;
+        margin-bottom: 15px;
+        resize: vertical;
     }
 
 
@@ -1197,6 +1227,55 @@
         border-radius: 10px;
     }
 
+    /* Level Editor Panel */
+    #editor-panel {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(20, 20, 30, 0.85);
+        border-radius: 10px;
+        padding: 10px;
+        z-index: 100;
+        border: 1px solid var(--color-sidebar-border);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        width: 240px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .editor-section h4 {
+        margin: 0 0 8px 0;
+        font-size: 0.9em;
+        color: #00e5ff;
+        border-bottom: 1px solid var(--color-sidebar-border);
+        padding-bottom: 4px;
+    }
+    .editor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        gap: 8px;
+    }
+    .editor-btn {
+        background: var(--color-bg2);
+        border: 1px solid var(--color-sidebar-border);
+        color: var(--color-text);
+        border-radius: 5px;
+        padding: 8px 5px;
+        cursor: pointer;
+        font-size: 11px;
+        text-align: center;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+    .editor-btn:hover {
+        background-color: var(--color-bg3);
+    }
+    .editor-btn.active {
+        border-color: #00e5ff;
+        background-color: #00373d;
+    }
+
 
     /* Landscape mode for ball selector */
     @media (orientation: landscape) {
@@ -1289,6 +1368,16 @@
       }
       .main-stats { font-size: 1em; }
       .coin-bank { font-size: 1.2em; }
+      
+      #editor-panel {
+        width: 150px;
+      }
+      .editor-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .editor-btn {
+        font-size: 10px;
+      }
     }
   </style>
 </head>
@@ -1392,6 +1481,20 @@
                 <span class="ball-count-badge hidden">0</span>
                 <div class="tooltip"></div>
             </button>
+        </div>
+        <div id="editor-panel" class="hidden">
+            <div id="editor-tools-section" class="editor-section">
+                <h4>TOOLS</h4>
+                <div class="editor-grid"></div>
+            </div>
+            <div id="editor-bricks-section" class="editor-section">
+                <h4>BRICKS</h4>
+                <div class="editor-grid"></div>
+            </div>
+            <div id="editor-overlays-section" class="editor-section">
+                <h4>OVERLAYS</h4>
+                <div class="editor-grid"></div>
+            </div>
         </div>
         <div class="toolbar">
            <button id="levelSettingsButton">Level Settings</button>
@@ -1552,6 +1655,11 @@
             <input type="number"id="maxCoin" value="300" min="0">
           </div>
         </div>
+      </div>
+      <div class="level-io-buttons">
+          <button id="exportLevelBtn" class="modal-action-button">Export Level</button>
+          <button id="importLevelBtn" class="modal-action-button">Import Level</button>
+          <button id="levelEditorBtn" class="modal-action-button">Level Editor</button>
       </div>
       <button id="generateLevelButton" class="modal-action-button">Generate New Level</button>
     </div>
@@ -1720,6 +1828,28 @@
             </div>
         </div>
     </div>
+
+  <!-- Export Level Modal -->
+  <div id="exportLevelModal" class="modal hidden">
+      <div class="modal-content">
+          <span class="close-button">&times;</span>
+          <h2>Export Level Data</h2>
+          <p>Copy the text below to save the current level layout.</p>
+          <textarea id="exportDataTextarea" readonly></textarea>
+          <button id="copyExportBtn" class="modal-action-button">Copy to Clipboard</button>
+      </div>
+  </div>
+
+  <!-- Import Level Modal -->
+  <div id="importLevelModal" class="modal hidden">
+      <div class="modal-content">
+          <span class="close-button">&times;</span>
+          <h2>Import Level Data</h2>
+          <p>Paste the level data string into the text area below.</p>
+          <textarea id="importDataTextarea" placeholder="Paste level data here..."></textarea>
+          <button id="importConfirmBtn" class="modal-action-button">Import</button>
+      </div>
+  </div>
 
   <script type="module" src="index.js"></script>
 </body>

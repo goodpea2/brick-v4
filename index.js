@@ -41,6 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
         forceEndTurn: () => p5Instance?.forceEndTurn(),
         triggerGoldenShot: () => p5Instance?.triggerGoldenShot(),
         addFloatingText: (text, color, options, position) => p5Instance?.addFloatingText(text, color, options, position),
+        exportLevelData: () => p5Instance?.exportLevelData(),
+        importLevelData: (data) => p5Instance?.importLevelData(data),
+        toggleLevelEditor: () => p5Instance?.toggleLevelEditor(),
+        setEditorState: (type, value) => p5Instance?.setEditorState(type, value),
 
         // New methods for equipmentManager
         healBall: (amount) => p5Instance?.healBall(amount),
