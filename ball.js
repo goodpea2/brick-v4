@@ -672,14 +672,14 @@ export class Ball {
         // Zap Aura Drawing
         const zapAura = equipment.find(item => item.id === 'zap_aura');
         if (zapAura && this.isMoving && board) {
-            const auraRadius = board.gridUnitSize * 2;
+            const auraRadius = board.gridUnitSize * zapAura.config.auraRadiusTiles;
             const auraColor = buffer.color(100, 200, 255);
             const alpha = buffer.map(buffer.sin(buffer.frameCount * 0.2), -1, 1, 50, 150);
             auraColor.setAlpha(alpha);
             buffer.noFill();
             buffer.stroke(auraColor);
             buffer.strokeWeight(3);
-            buffer.ellipse(b.pos.x, b.pos.y, auraRadius * 2);
+            buffer.ellipse(this.pos.x, this.pos.y, auraRadius * 2);
             
             if (buffer.frameCount % 3 === 0) {
                 for (let i = 0; i < 3; i++) {

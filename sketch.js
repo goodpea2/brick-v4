@@ -16,6 +16,9 @@ import { generateRandomEquipment } from './equipment.js';
 import * as dom from './dom.js';
 import * as event from './eventManager.js';
 import * as equipmentManager from './equipmentManager.js';
+import * as levelEditor from './levelEditor.js';
+import { exportLevelToString } from './levelExporter.js';
+import { importLevelFromString } from './levelImporter.js';
 
 export const sketch = (p, state) => {
     // Game state variables
@@ -62,11 +65,6 @@ export const sketch = (p, state) => {
     let endTurnActions = [];
     let endTurnActionTimer = 0;
     let zapperAuraTimer = 0;
-
-    // Editor variables
-    let undoStack = [];
-    const MAX_UNDO_STATES = 50;
-    let editorModifiedTiles = new Set();
     
     p.setup = () => {
         const container = document.getElementById('canvas-container');
@@ -116,7 +114,13 @@ export const sketch = (p, state) => {
 
     p.draw = () => {
         if (state.isEditorMode) {
-            drawEditor();
+            const renderContext = {
+                gameState, board, splatBuffer, shakeAmount: 0, isAiming: false, ballsInPlay: [], endAimPos: null,
+                bricks, ghostBalls: [], miniBalls: [], projectiles: [], xpOrbs: [],
+                particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
+                combo, sharedBallStats
+            };
+            levelEditor.draw(p, renderContext);
             return;
         }
 
@@ -397,7 +401,15 @@ export const sketch = (p, state) => {
                             const brick = bricks[c][r];
                             if (brick && !hitBricks.has(brick)) {
                                 const brickPos = brick.getPixelPos(board);
-                                if (p.dist(ball.pos.x, ball.pos.y, brickPos.x + brick.size/2, brickPos.y + brick.size/2) < auraRadius) {
+                                const brickWidth = brick.size * brick.widthInCells;
+                                const brickHeight = brick.size * brick.heightInCells;
+                                
+                                let testX = ball.pos.x, testY = ball.pos.y;
+                                if (ball.pos.x < brickPos.x) testX = brickPos.x; else if (ball.pos.x > brickPos.x + brickWidth) testX = brickPos.x + brickWidth;
+                                if (ball.pos.y < brickPos.y) testY = brickPos.y; else if (ball.pos.y > brickPos.y + brickHeight) testY = brickPos.y + brickHeight;
+                                
+                                const distX = ball.pos.x - testX, distY = ball.pos.y - testY;
+                                if ((distX * distX) + (distY * distY) <= auraRadius * auraRadius) {
                                     hitBricks.add(brick);
                                     const hitResult = brick.hit(auraDamage, 'zap_aura', board);
                                     if (hitResult) {
@@ -548,200 +560,6 @@ export const sketch = (p, state) => {
 
         handleGameStates();
     }
-
-    // --- EDITOR LOGIC ---
-    function pushUndoState() {
-        undoStack.push(p.exportLevelData());
-        if (undoStack.length > MAX_UNDO_STATES) {
-            undoStack.shift();
-        }
-    }
-
-    function popUndoState() {
-        if (undoStack.length > 0) {
-            const prevState = undoStack.pop();
-            p.importLevelData(prevState, true); // true to prevent gameState change
-        }
-    }
-
-    function applyToolActionToTile(c, r) {
-        let actionTaken = false;
-        const brick = bricks[c]?.[r];
-        const coordStr = `${c},${r}`;
-
-        switch (state.editorTool) {
-            case 'place':
-                const isOverlay = ['builder', 'healer', 'mine', 'zapper', 'zap_battery'].includes(state.editorObject);
-                if (isOverlay) {
-                    if (brick && brick.type === 'normal' && brick.overlay !== state.editorObject) {
-                        brick.overlay = state.editorObject;
-                        actionTaken = true;
-                    }
-                } else {
-                    const removeBrick = (b) => {
-                        if (!b) return;
-                        const rootC = b.c + 6, rootR = b.r + 6;
-                        for (let i = 0; i < b.widthInCells; i++) {
-                            for (let j = 0; j < b.heightInCells; j++) {
-                                if (bricks[rootC + i] && bricks[rootC + i][rootR + j] === b) {
-                                     bricks[rootC + i][rootR + j] = null;
-                                }
-                            }
-                        }
-                    };
-    
-                    if (state.editorObject === 'long_h') {
-                        if (c + 2 >= board.cols) return false;
-                        const toRemove = new Set();
-                        if (bricks[c]?.[r]) toRemove.add(bricks[c][r]);
-                        if (bricks[c+1]?.[r]) toRemove.add(bricks[c+1][r]);
-                        if (bricks[c+2]?.[r]) toRemove.add(bricks[c+2][r]);
-                        toRemove.forEach(b => removeBrick(b));
-    
-                        const newBrick = new Brick(p, c - 6, r - 6, 'normal', BRICK_STATS.maxHp.long, board.gridUnitSize);
-                        newBrick.widthInCells = 3;
-                        bricks[c][r] = newBrick;
-                        bricks[c + 1][r] = newBrick;
-                        bricks[c + 2][r] = newBrick;
-                        actionTaken = true;
-                    } else if (state.editorObject === 'long_v') {
-                        if (r + 2 >= board.rows) return false;
-                        const toRemove = new Set();
-                        if (bricks[c]?.[r]) toRemove.add(bricks[c][r]);
-                        if (bricks[c]?.[r+1]) toRemove.add(bricks[c][r+1]);
-                        if (bricks[c]?.[r+2]) toRemove.add(bricks[c][r+2]);
-                        toRemove.forEach(b => removeBrick(b));
-                        
-                        const newBrick = new Brick(p, c - 6, r - 6, 'normal', BRICK_STATS.maxHp.long, board.gridUnitSize);
-                        newBrick.heightInCells = 3;
-                        bricks[c][r] = newBrick;
-                        bricks[c][r + 1] = newBrick;
-                        bricks[c][r + 2] = newBrick;
-                        actionTaken = true;
-                    } else {
-                        if (!brick || brick.type !== state.editorObject || brick.overlay !== null) {
-                             removeBrick(brick);
-                             const newBrick = new Brick(p, c - 6, r - 6, state.editorObject, 10, board.gridUnitSize);
-                             bricks[c][r] = newBrick;
-                             actionTaken = true;
-                        }
-                    }
-                }
-                break;
-            case 'remove':
-                if (brick) {
-                    if (brick.overlay) {
-                        brick.overlay = null;
-                    } else {
-                        const rootC = brick.c + 6, rootR = brick.r + 6;
-                        for (let i = 0; i < brick.widthInCells; i++) {
-                            for (let j = 0; j < brick.heightInCells; j++) {
-                                bricks[rootC + i][rootR + j] = null;
-                            }
-                        }
-                    }
-                    actionTaken = true;
-                }
-                break;
-            default: // Stat modifiers
-                if (brick && !editorModifiedTiles.has(coordStr)) {
-                    editorModifiedTiles.add(coordStr);
-                    const [type, op, valStr] = state.editorTool.split('_');
-                    const value = parseInt(valStr, 10) * (op === 'minus' ? -1 : 1);
-                    if (type === 'hp') {
-                        const newHp = Math.max(1, brick.health + value);
-                        brick.health = newHp;
-                        if (value > 0 && newHp > brick.maxHealth) brick.maxHealth = newHp;
-                    } else if (type === 'coin') {
-                        const newCoins = Math.max(0, brick.coins + value);
-                        brick.coins = newCoins;
-                        if (value > 0 && newCoins > brick.maxCoins) brick.maxCoins = newCoins;
-                        if (brick.maxCoins > 0) {
-                            brick.coinIndicatorPositions = Array.from({ length: p.min(brick.maxCoins, 20) }, () => p.createVector(p.random(brick.size * 0.1, brick.size * 0.9), p.random(brick.size * 0.1, brick.size * 0.9)));
-                        } else brick.coinIndicatorPositions = null;
-                    }
-                    actionTaken = true;
-                }
-                break;
-        }
-        return actionTaken;
-    }
-
-    function handleEditorClick() {
-        const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-        const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
-    
-        if (gridC < 0 || gridC >= board.cols || gridR < 0 || gridR >= board.rows) {
-            return;
-        }
-    
-        let actionTaken = false;
-        
-        if (state.editorTool === 'select') {
-            const coordStr = `${gridC},${r}`;
-            if (state.isDeselectingInEditor) {
-                state.editorSelection.delete(coordStr);
-            } else {
-                state.editorSelection.add(coordStr);
-            }
-            return; // No vfx for selection
-        }
-
-        // All other tools (place, remove, stats)
-        if (state.editorSelection.size > 0) {
-            state.editorSelection.forEach(coordStr => {
-                const [c, r] = coordStr.split(',').map(Number);
-                if (applyToolActionToTile(c, r)) {
-                    actionTaken = true;
-                }
-            });
-        } else {
-            actionTaken = applyToolActionToTile(gridC, gridR);
-        }
-    
-        if (actionTaken) {
-            const pixelPos = { x: board.genX + gridC * board.gridUnitSize, y: board.genY + gridR * board.gridUnitSize };
-            shockwaves.push(new Shockwave(p, pixelPos.x + board.gridUnitSize / 2, pixelPos.y + board.gridUnitSize / 2, 40, p.color(0, 229, 255), 4));
-        }
-    }
-
-    function drawEditor() {
-        renderGame(p, {
-            gameState, board, splatBuffer, shakeAmount: 0, isAiming: false, ballsInPlay: [], endAimPos: null,
-            bricks, ghostBalls: [], miniBalls: [], projectiles: [], xpOrbs: [],
-            particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
-            combo, sharedBallStats
-        });
-
-        p.stroke(255, 255, 255, 50);
-        p.strokeWeight(1);
-        for (let i = 0; i <= board.cols; i++) p.line(board.genX + i * board.gridUnitSize, board.genY, board.genX + i * board.gridUnitSize, board.genY + board.rows * board.gridUnitSize);
-        for (let i = 0; i <= board.rows; i++) p.line(board.genX, board.genY + i * board.gridUnitSize, board.genX + board.cols * board.gridUnitSize, board.genY + i * board.gridUnitSize);
-
-        // Draw selection
-        p.noStroke();
-        p.fill(255, 255, 255, 100);
-        state.editorSelection.forEach(coordStr => {
-            const [c, r] = coordStr.split(',').map(Number);
-            p.rect(board.genX + c * board.gridUnitSize, board.genY + r * board.gridUnitSize, board.gridUnitSize, board.gridUnitSize);
-        });
-
-        const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-        const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
-
-        if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows && state.editorSelection.size === 0) {
-            const x = board.genX + gridC * board.gridUnitSize;
-            const y = board.genY + gridR * board.gridUnitSize;
-
-            p.noStroke(); p.fill(255, 255, 255, 80); p.rect(x, y, board.gridUnitSize, board.gridUnitSize);
-            
-            if (state.editorTool !== 'select') {
-                p.textAlign(p.CENTER, p.CENTER); p.textSize(12); p.fill(255);
-                const text = state.editorTool === 'place' ? state.editorObject : state.editorTool.replace(/_/g, ' ');
-                p.text(text, x + board.gridUnitSize / 2, y + board.gridUnitSize / 2);
-            }
-        }
-    }
     
     // --- EXPOSED CONTROL FUNCTIONS ---
     p.resetGame = (settings) => {
@@ -888,39 +706,15 @@ export const sketch = (p, state) => {
     };
 
     p.exportLevelData = () => {
-        const data = [];
-        const processedBricks = new Set();
-        for (let r = 0; r < board.rows; r++) {
-            for (let c = 0; c < board.cols; c++) {
-                const brick = bricks[c][r];
-                if (brick && !processedBricks.has(brick)) {
-                    processedBricks.add(brick);
-                    const brickData = [
-                        brick.c,
-                        brick.r,
-                        brick.type,
-                        brick.health,
-                        brick.maxHealth,
-                        brick.coins,
-                        brick.maxCoins,
-                        brick.gems,
-                        brick.maxGems,
-                        brick.overlay || 'null',
-                        brick.widthInCells,
-                        brick.heightInCells,
-                    ];
-                    data.push(brickData.join(','));
-                }
-            }
-        }
-        return data.join(';');
+        return exportLevelToString(bricks, board);
     };
 
     p.importLevelData = (dataString, editorUndo = false) => {
-        try {
-            // Soft reset the board
-            bricks = Array(board.cols).fill(null).map(() => Array(board.rows).fill(null));
+        const newBricks = importLevelFromString(dataString, p, board);
+        if (newBricks) {
+            bricks = newBricks;
             if (!editorUndo) {
+                // Soft reset the board state without changing game progress
                 ballsInPlay = [];
                 miniBalls = [];
                 projectiles = [];
@@ -929,100 +723,17 @@ export const sketch = (p, state) => {
                 delayedActionsQueue = [];
                 endTurnActions = [];
                 gameState = 'aiming';
+                splatBuffer.clear();
             }
-
-            const brickStrings = dataString.split(';');
-            for (const bStr of brickStrings) {
-                if (!bStr) continue;
-                const props = bStr.split(',');
-                if (props.length < 12) continue;
-                
-                const [c, r, type, health, maxHealth, coins, maxCoins, gems, maxGems, overlay, widthInCells, heightInCells] = props;
-
-                const newBrick = new Brick(p, parseInt(c, 10), parseInt(r, 10), type, parseFloat(health), board.gridUnitSize);
-                newBrick.maxHealth = parseFloat(maxHealth);
-                newBrick.coins = parseInt(coins, 10);
-                newBrick.maxCoins = parseInt(maxCoins, 10);
-                newBrick.gems = parseInt(gems, 10);
-                newBrick.maxGems = parseInt(maxGems, 10);
-                newBrick.overlay = overlay === 'null' ? null : overlay;
-                newBrick.widthInCells = parseInt(widthInCells, 10);
-                newBrick.heightInCells = parseInt(heightInCells, 10);
-                
-                const gridC = newBrick.c + 6;
-                const gridR = newBrick.r + 6;
-
-                for (let i = 0; i < newBrick.widthInCells; i++) {
-                    for (let j = 0; j < newBrick.heightInCells; j++) {
-                        bricks[gridC + i][gridR + j] = newBrick;
-                    }
-                }
-            }
-
-            // Finalize setup
-            if (!editorUndo) splatBuffer.clear();
-            let goalBrickCount = 0;
-            const allBricks = new Set();
-            for (let c = 0; c < board.cols; c++) {
-                for (let r = 0; r < board.rows; r++) {
-                    const b = bricks[c][r];
-                    if (b && !allBricks.has(b)) {
-                        allBricks.add(b);
-                        if (b.type === 'goal') goalBrickCount++;
-                        if (b.maxCoins > 0) {
-                            b.coinIndicatorPositions = Array.from({ length: p.min(b.maxCoins, 20) }, () => p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
-                        }
-                        if (b.maxGems > 0) {
-                             b.gemIndicatorPositions = Array.from({ length: p.min(b.maxGems, 20) }, () => p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
-                        }
-                    }
-                }
-            }
-
-            if (goalBrickCount === 0 && !editorUndo) {
-                let spotFound = false;
-                for (let r = 0; r < board.rows && !spotFound; r++) for (let c = 0; c < board.cols && !spotFound; c++) if (!bricks[c][r]) { bricks[c][r] = new Brick(p, c - 6, r - 6, 'goal', 10, board.gridUnitSize); spotFound = true; }
-            }
-        } catch (error) {
-            console.error("Failed to import level data:", error);
-            p.addFloatingText("Invalid Level Data!", p.color(255, 0, 0), { isBold: true, size: 24 });
         }
     };
     
     p.toggleLevelEditor = () => {
-        state.isEditorMode = !state.isEditorMode;
-        dom.editorPanel.classList.toggle('hidden', !state.isEditorMode);
-        dom.ballSelector.classList.toggle('hidden', state.isEditorMode);
-        document.querySelector('.toolbar').classList.toggle('hidden', state.isEditorMode);
-        dom.speedToggleBtn.classList.toggle('hidden', state.isEditorMode);
-    
-        let finishBtn = document.getElementById('finishEditBtn');
-        if (state.isEditorMode) {
-            if (!finishBtn) {
-                finishBtn = document.createElement('button');
-                finishBtn.id = 'finishEditBtn';
-                finishBtn.textContent = 'Finish Editing';
-                finishBtn.className = 'top-right-btn';
-                finishBtn.addEventListener('click', () => {
-                    sounds.buttonClick();
-                    p.toggleLevelEditor();
-                });
-                document.getElementById('game-ui-overlay').appendChild(finishBtn);
-            }
-            finishBtn.classList.remove('hidden');
+        const isNowEditing = levelEditor.toggle();
+        if (isNowEditing) {
+            // No need to reset game state when entering editor
         } else {
-            if (finishBtn) {
-                finishBtn.classList.add('hidden');
-            }
-        }
-        
-        if (state.isEditorMode) {
-            undoStack = [];
-            p.setEditorState('tool', 'select');
-            p.setEditorState('object', 'normal');
-        } else {
-            state.editorSelection.clear();
-            // Reset game state to be playable again
+            // Reset game state to be playable again after editing
             ballsInPlay = [];
             miniBalls = [];
             projectiles = [];
@@ -1032,34 +743,17 @@ export const sketch = (p, state) => {
     };
     
     p.setEditorState = (type, value) => {
-        if (type === 'tool') {
-            if (value === 'undo') {
-                popUndoState();
-                return;
-            }
-            if (value === 'deselect_all') {
-                state.editorSelection.clear();
-                return;
-            }
-            if (value === 'removeAll') {
-                pushUndoState();
-                bricks = Array(board.cols).fill(null).map(() => Array(board.rows).fill(null));
-                shockwaves.push(new Shockwave(p, board.x + board.width / 2, board.y + board.height / 2, board.width, p.color(255, 0, 0), 20));
-                return;
-            }
-            state.editorTool = value;
-        } else if (type === 'object') {
-            state.editorTool = 'place';
-            state.editorObject = value;
+        if (type === 'tool' && value === 'removeAll') {
+            levelEditor.pushUndoState();
+            p.clearBricks();
+        } else {
+            levelEditor.setState(type, value);
         }
-        
-        document.querySelectorAll('.editor-btn').forEach(btn => btn.classList.remove('active'));
-        let activeBtn = document.querySelector(`.editor-btn[data-tool="${state.editorTool}"]`);
-        if(activeBtn) activeBtn.classList.add('active');
-        if (state.editorTool === 'place') {
-            activeBtn = document.querySelector(`.editor-btn[data-object="${state.editorObject}"]`);
-            if (activeBtn) activeBtn.classList.add('active');
-        }
+    };
+
+    p.clearBricks = () => {
+        bricks = Array(board.cols).fill(null).map(() => Array(board.rows).fill(null));
+        shockwaves.push(new Shockwave(p, board.x + board.width / 2, board.y + board.height / 2, board.width, p.color(255, 0, 0), 20));
     };
 
 
@@ -1151,7 +845,7 @@ export const sketch = (p, state) => {
                 case 'brick_hit':
                     levelStats.totalDamage += evt.damageDealt;
                     levelStats.damageThisTurn += evt.damageDealt;
-                    handleCombo('brick_hit', evt.center);
+                    handleCombo('brick_hit', evt.center, evt.source);
                     floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `${Math.floor(evt.damageDealt)}`, p.color(255, 255, 255), { size: 14, lifespan: 40, vel: p.createVector(0, -0.5) }));
                     
                     if(evt.coinsDropped > 0) {
@@ -1302,8 +996,12 @@ export const sketch = (p, state) => {
         });
     }
 
-    function handleCombo(type, pos) { 
+    function handleCombo(type, pos, source) { 
         if (isGiantBallTurn || state.mainLevel < UNLOCK_LEVELS.COMBO_MINES) return; 
+        
+        const isDirectHit = source instanceof Ball || source instanceof MiniBall;
+        if (!isDirectHit) return;
+
         combo++;
         event.dispatch('ComboAdded', { newComboCount: combo });
         maxComboThisTurn = p.max(maxComboThisTurn, combo);
@@ -1436,26 +1134,21 @@ export const sketch = (p, state) => {
             }
         } 
     }
+    
+    p.mouseClicked = (evt) => {
+        if (p.isModalOpen || evt.target !== p.canvas) return;
+        if (state.isEditorMode) {
+            return;
+        }
+        
+        // ... (existing game logic for click)
+    };
 
     p.mousePressed = (evt) => {
         if (p.isModalOpen || evt.target !== p.canvas) return;
 
         if (state.isEditorMode) {
-            editorModifiedTiles.clear();
-            const tool = state.editorTool;
-            // Push undo state ONCE at the start of a modification stroke
-            if (tool !== 'select') {
-                pushUndoState();
-            }
-            // For select tool, determine if we are selecting or deselecting for this drag action
-            if (tool === 'select') {
-                const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-                const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
-                if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
-                    state.isDeselectingInEditor = state.editorSelection.has(`${gridC},${gridR}`);
-                }
-            }
-            handleEditorClick(); // Perform the first action of the stroke
+            levelEditor.handleMousePressed(p, board, bricks, shockwaves);
             return;
         }
         
@@ -1557,7 +1250,7 @@ export const sketch = (p, state) => {
     };
     p.mouseDragged = (evt) => {
         if (state.isEditorMode && p.mouseIsPressed) {
-            handleEditorClick();
+            levelEditor.handleMouseDragged(p, board, bricks, shockwaves);
             return false;
         }
         if (isAiming && ballsInPlay.length > 0) {
@@ -1566,10 +1259,9 @@ export const sketch = (p, state) => {
     };
     p.mouseReleased = (evt) => { 
         if (state.isEditorMode) {
-            editorModifiedTiles.clear();
-            state.isDeselectingInEditor = false;
+            levelEditor.handleMouseReleased();
+            return;
         }
-
         if (isAiming && ballsInPlay.length > 0) { 
             const ball = ballsInPlay[0];
             ghostBalls = [];

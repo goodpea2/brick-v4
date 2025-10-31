@@ -6,6 +6,9 @@ import { state, applyAllUpgrades } from './state.js';
 import { sounds } from './sfx.js';
 import * as dom from './dom.js';
 import { initializeEquipmentManager } from './equipmentManager.js';
+import { initialize as initializeLevelEditor } from './levelEditor.js';
+import { initialize as initializeLevelExporter } from './levelExporter.js';
+import { initialize as initializeLevelImporter } from './levelImporter.js';
 
 let p5Instance;
 
@@ -42,9 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerGoldenShot: () => p5Instance?.triggerGoldenShot(),
         addFloatingText: (text, color, options, position) => p5Instance?.addFloatingText(text, color, options, position),
         exportLevelData: () => p5Instance?.exportLevelData(),
-        importLevelData: (data) => p5Instance?.importLevelData(data),
+        importLevelData: (data, editorUndo) => p5Instance?.importLevelData(data, editorUndo),
         toggleLevelEditor: () => p5Instance?.toggleLevelEditor(),
         setEditorState: (type, value) => p5Instance?.setEditorState(type, value),
+        clearBricks: () => p5Instance?.clearBricks(),
 
         // New methods for equipmentManager
         healBall: (amount) => p5Instance?.healBall(amount),
@@ -59,6 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initializeInput(gameController, runCode);
     initializeEquipmentManager(gameController);
+    initializeLevelEditor(gameController);
+    initializeLevelExporter(gameController);
+    initializeLevelImporter(gameController);
     
     // Initialize sound volume from the UI slider's default value
     sounds.setMasterVolume(parseFloat(dom.volumeSlider.value));
