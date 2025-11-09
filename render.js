@@ -82,72 +82,46 @@ function drawInGameUI(p, ballsInPlay, sharedBallStats) {
     const totalSegments = Math.ceil(sharedBallStats.maxHp / 10);
 
     if (isLandscape) {
-    // --- UI positioning ---
-    const segWidth = 24, segHeight = 8, segGap = 3, iconSize = 24, iconGap = 6;
-    const segsPerCol = 10; // fixed max per column
-    const numCols = Math.ceil(totalSegments / segsPerCol);
-    const barWidth = numCols * (segWidth + segGap);
-    const barHeight = (Math.min(segsPerCol, totalSegments) * (segHeight + segGap)) - segGap;
+        let uiX = p.min(p.width * 0.1, 60);
+        let uiY = p.height / 2;
+        const segWidth = 24, segHeight = 8, segGap = 3, iconSize = 24, iconGap = 6;
+        const availableHeight = p.min(p.height * 0.8, 500);
+        const segsPerCol = Math.floor(availableHeight / (segHeight + segGap));
+        const numCols = Math.ceil(totalSegments / segsPerCol);
+        const barWidth = numCols * (segWidth + segGap);
+        const barHeight = (Math.min(segsPerCol, totalSegments) * (segHeight + segGap)) - segGap;
 
-    // bottom-left positioning
-    let uiX = p.min(p.width * 0.1, 60);
-    let uiY = p.height - 20; // near bottom (adjust 20 to move up/down)
-
-    let totalUiHeight = barHeight;
-    if (sharedBallStats.maxUses > 0) {
-        totalUiHeight += (sharedBallStats.maxUses * (iconSize + iconGap)) + 10;
-    }
-
-    // starting Y position (bottom-up layout)
-    let currentDrawY = uiY - barHeight; // start drawing from bottom
-
-    // --- Draw icons first (above the HP bar) ---
-    if (sharedBallStats.maxUses > 0) {
-        let iconStartY = currentDrawY - ((sharedBallStats.maxUses * (iconSize + iconGap)) + 10);
-        for (let i = 0; i < sharedBallStats.maxUses; i++) {
-            const x = uiX - iconSize / 2;
-            const y = iconStartY + i * (iconSize + iconGap);
-            p.strokeWeight(1.5);
-            p.stroke(0);
-            if (i < sharedBallStats.uses) p.fill(255, 193, 7);
-            else p.fill(108, 117, 125);
-            p.beginShape();
-            p.vertex(x + iconSize * 0.4, y);
-            p.vertex(x + iconSize * 0.4, y + iconSize * 0.5);
-            p.vertex(x + iconSize * 0.2, y + iconSize * 0.5);
-            p.vertex(x + iconSize * 0.6, y + iconSize);
-            p.vertex(x + iconSize * 0.6, y + iconSize * 0.6);
-            p.vertex(x + iconSize * 0.8, y + iconSize * 0.6);
-            p.endShape(p.CLOSE);
+        let totalUiHeight = barHeight;
+        if (sharedBallStats.maxUses > 0) {
+            totalUiHeight += (sharedBallStats.maxUses * (iconSize + iconGap)) + 10;
         }
-    }
 
-    // --- Draw HP bar (bottom-up, column-wrapped) ---
-    for (let i = 0; i < totalSegments; i++) {
-        const col = Math.floor(i / segsPerCol);
-        const row = i % segsPerCol;
+        let currentDrawY = uiY - totalUiHeight / 2;
 
-        // compute from bottom up
-        const x = uiX - barWidth / 2 + col * (segWidth + segGap);
-        const y = uiY - (row + 1) * (segHeight + segGap);
-
-        // draw background
-        p.noStroke();
-        p.fill(47, 47, 47);
-        p.rect(x, y, segWidth, segHeight, 2);
-
-        // draw filled portion
-        let fillWidth = 0;
-        if (i < Math.floor(currentHpValue)) fillWidth = segWidth;
-        else if (i === Math.floor(currentHpValue)) fillWidth = (currentHpValue % 1) * segWidth;
-        if (fillWidth > 0) {
-            if (sharedBallStats.flashTime > 0) p.fill(244, 67, 54);
-            else p.fill(76, 175, 80);
-            p.rect(x, y, fillWidth, segHeight, 2);
+        if (sharedBallStats.maxUses > 0) {
+            for (let i = 0; i < sharedBallStats.maxUses; i++) {
+                const x = uiX - iconSize / 2, y = currentDrawY;
+                p.strokeWeight(1.5); p.stroke(0);
+                if (i < sharedBallStats.uses) p.fill(255, 193, 7); else p.fill(108, 117, 125);
+                p.beginShape(); p.vertex(x + iconSize * 0.4, y); p.vertex(x + iconSize * 0.4, y + iconSize * 0.5); p.vertex(x + iconSize * 0.2, y + iconSize * 0.5); p.vertex(x + iconSize * 0.6, y + iconSize); p.vertex(x + iconSize * 0.6, y + iconSize * 0.6); p.vertex(x + iconSize * 0.8, y + iconSize * 0.6); p.endShape(p.CLOSE);
+                currentDrawY += iconSize + iconGap;
+            }
+            currentDrawY += 10;
         }
-    }
-}
- else { // Portrait
+
+        for (let i = 0; i < totalSegments; i++) {
+            const col = Math.floor(i / segsPerCol), row = i % segsPerCol;
+            const x = uiX - barWidth / 2 + col * (segWidth + segGap), y = currentDrawY + row * (segHeight + segGap);
+            p.noStroke(); p.fill(47, 47, 47); p.rect(x, y, segWidth, segHeight, 2);
+            let fillWidth = 0;
+            if (i < Math.floor(currentHpValue)) fillWidth = segWidth;
+            else if (i === Math.floor(currentHpValue)) fillWidth = (currentHpValue % 1) * segWidth;
+            if (fillWidth > 0) {
+                if (sharedBallStats.flashTime > 0) p.fill(244, 67, 54); else p.fill(76, 175, 80);
+                p.rect(x, y, fillWidth, segHeight, 2);
+            }
+        }
+    } else { // Portrait
         let uiX = p.width / 2, uiY = p.height - 90;
         const segWidth = 8, segHeight = 16, segGap = 2, iconSize = 20, iconGap = 5;
         const availableWidth = p.min(p.width * 0.9, 400);
@@ -185,12 +159,12 @@ function drawInGameUI(p, ballsInPlay, sharedBallStats) {
 }
 
 
-export function renderGame(p, context, timers = {}) {
+export function renderGame(p, context) {
     const {
         gameState, board, splatBuffer, shakeAmount, isAiming, ballsInPlay, endAimPos, 
         bricks, ghostBalls, miniBalls, projectiles, xpOrbs,
         particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
-        combo, sharedBallStats, selectedBrick, flyingIcons, draggedBrick
+        combo, sharedBallStats
     } = context;
 
     p.background(40, 45, 55);
@@ -274,91 +248,11 @@ export function renderGame(p, context, timers = {}) {
         for (let r = 0; r < board.rows; r++) {
             const brick = bricks[c][r];
             if (brick && !drawnBricks.has(brick)) {
-                let timerState = null;
-                if (brick.type === 'Farmland' && timers.farmland) {
-                    timerState = timers.farmland;
-                } else if (brick.type === 'Sawmill' && timers.sawmill) {
-                    timerState = timers.sawmill;
-                } else if (brick.type === 'BallProducer' && timers.producer) {
-                    const key = brick.c + ',' + brick.r;
-                    if (timers.producer[key]) {
-                        timerState = timers.producer[key];
-                    }
-                }
-                brick.draw(board, timerState);
+                brick.draw(board);
                 drawnBricks.add(brick);
             }
         }
     }
-    
-    // Draw selected brick highlight in home base
-    if (gameState === 'homeBase' && selectedBrick && !draggedBrick) {
-        const brick = selectedBrick;
-        const pos = brick.getPixelPos(board);
-        const totalWidth = brick.size * brick.widthInCells;
-        const totalHeight = brick.size * brick.heightInCells;
-        
-        // Farmland range
-        if (brick.type === 'Farmland') {
-            const cX = pos.x + totalWidth / 2;
-            const cY = pos.y + totalHeight / 2;
-            const radius = 3.2 * board.gridUnitSize;
-            p.noFill();
-            p.stroke(0, 255, 127, 150);
-            p.strokeWeight(2);
-            p.drawingContext.setLineDash([5, 5]);
-            p.ellipse(cX, cY, radius * 2);
-            p.drawingContext.setLineDash([]);
-        }
-
-        p.noFill();
-        p.stroke(255);
-        p.strokeWeight(3);
-        const cornerRadius = (brick.type === 'shieldGen') ? 8 : 4;
-        p.rect(pos.x - 1.5, pos.y - 1.5, totalWidth + 3, totalHeight + 3, cornerRadius + 2);
-    }
-
-    // Draw drag & drop preview
-    if (draggedBrick) {
-        const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-        const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
-
-        let isValidDrop = true;
-        // Check if all cells for the new position are empty
-        for (let i = 0; i < draggedBrick.widthInCells; i++) {
-            for (let j = 0; j < draggedBrick.heightInCells; j++) {
-                const targetC = gridC + i;
-                const targetR = gridR + j;
-                if (targetC < 0 || targetC >= board.cols || targetR < 0 || targetR >= board.rows || bricks[targetC][targetR]) {
-                    isValidDrop = false;
-                    break;
-                }
-            }
-            if (!isValidDrop) break;
-        }
-
-        // Draw highlight
-        const highlightColor = isValidDrop ? p.color(0, 255, 0, 100) : p.color(255, 0, 0, 100);
-        p.noStroke();
-        p.fill(highlightColor);
-        p.rect(
-            board.genX + gridC * board.gridUnitSize,
-            board.genY + gridR * board.gridUnitSize,
-            board.gridUnitSize * draggedBrick.widthInCells,
-            board.gridUnitSize * draggedBrick.heightInCells
-        );
-
-        // Draw semi-transparent brick preview
-        p.push();
-        p.drawingContext.globalAlpha = 0.6;
-        const previewPos = p.createVector(
-            board.genX + gridC * board.gridUnitSize,
-            board.genY + gridR * board.gridUnitSize
-        );
-        draggedBrick.draw(board, null, previewPos);
-        p.pop();
-    }
-    
     ballsInPlay.forEach(b => { 
         b.flashTime = sharedBallStats.flashTime; 
         b.draw(undefined, combo, board); 
@@ -475,7 +369,6 @@ export function renderGame(p, context, timers = {}) {
         });
     }
 
-    if (flyingIcons) flyingIcons.forEach(fi => fi.draw());
     [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs].forEach(vfxArray => vfxArray.forEach(v => v.draw()));
     
     drawGoldenTurnAnnouncement(p, board, gameState);

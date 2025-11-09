@@ -1,5 +1,4 @@
-// ball.js 
-// enchantment symbols for a future feature 🌿🫘🧆🍬🍭
+// ball.js
 import { state } from './state.js';
 import { BALL_STATS } from './balancing.js';
 import * as event from './eventManager.js';
@@ -201,7 +200,7 @@ export class MiniBall {
         this.p = p;
         this.pos = p.createVector(x,y); 
         this.vel = vel; 
-        this.radius = gridUnitSize * BALL_STATS.types.miniball.radiusMultiplier;
+        this.radius = gridUnitSize * 0.2; // 4 / 20
         this.brickHitCooldowns = new Map();
         this.isDead = false;
         this.mainBallIsDead = false;
@@ -286,10 +285,7 @@ export class Ball {
         this.vel = p.createVector(0, 0); 
         this.isMoving = false; 
         
-        this.maxHp = (BALL_STATS.types[type]?.hp ?? 100);
-        if (type !== 'giant') {
-            this.maxHp += (stats.extraBallHp ?? 0);
-        }
+        this.maxHp = (BALL_STATS.types[type]?.hp ?? 100) + (stats.extraBallHp ?? 0);
         this.hp = this.maxHp; 
         this.flashTime = 0; 
         this.type = type; 
@@ -306,7 +302,7 @@ export class Ball {
         this.overflowApplied = false;
         this.hitHistory = [];
         
-        this.radius = gridUnitSize * (BALL_STATS.types[type]?.radiusMultiplier ?? 0.32);
+        this.radius = gridUnitSize * 0.32; // 6.4 / 20
 
         this.powerUpUses = this.powerUpMaxUses = BALL_STATS.types[type]?.powerUpUses ?? 0;
         this.isPiercing = false; 
@@ -323,6 +319,7 @@ export class Ball {
         }
         
         if(type === 'giant') {
+            this.radius = gridUnitSize * 0.8; 
             this.damageDealtForHpLoss = 0;
         }
     } 

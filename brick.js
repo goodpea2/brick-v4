@@ -1,44 +1,22 @@
 // brick.js
 
-import { BRICK_STATS, BRICK_VISUALS, HOME_BASE_PRODUCTION } from './balancing.js';
+import { BRICK_STATS, BRICK_VISUALS } from './balancing.js';
 import { state } from './state.js';
 import { Ball, MiniBall } from './ball.js';
-import { BRICK_LEVELING_DATA } from './brickLeveling.js';
 
 export class Brick {
-    constructor(p, c, r, type = 'normal', health = 10, gridUnitSize, level = 1) { 
+    constructor(p, c, r, type = 'normal', health = 10, gridUnitSize) { 
         this.p = p;
         this.c = c; // Column, -6 to 6
         this.r = r; // Row, -6 to 6
         this.size = gridUnitSize; 
         this.type = type; 
-        this.level = level;
-        
-        // Set default stats first
-        this.maxHealth = health;
-        this.health = health;
-        this.capacity = 0;
-        this.productionRate = 0;
-        this.armor = 0;
-        this.retaliateDamage = 0;
-        this.localResourceStorage = 0;
-        this.localResourceCapacity = 0;
-
-        // Override with stats from BRICK_LEVELING_DATA if available
-        const levelStats = BRICK_LEVELING_DATA[type]?.[level - 1]?.stats;
-        if (levelStats) {
-            Object.assign(this, levelStats);
-        }
-        
-        // The rest of the properties
-        this.internalResourcePool = 0; 
+        this.maxHealth = health; 
+        this.health = health; 
         this.pointsPerHp = 1; 
         this.maxCoins = 0; 
         this.coins = 0; 
         this.coinIndicatorPositions = null; 
-        this.maxFood = BRICK_STATS.canCarryFood[this.type] ? 20 : 0;
-        this.food = 0;
-        this.foodIndicatorPositions = null;
         this.gems = 0;
         this.maxGems = 0;
         this.gemIndicatorPositions = null;
@@ -46,24 +24,9 @@ export class Brick {
         this.flashTime = 0;
         this.isShieldedByAura = false;
         
+        // For merged bricks
         this.widthInCells = 1;
         this.heightInCells = 1;
-
-        if (this.type === 'BallProducer') {
-            this.production = {
-                type: null,
-                queueCount: 0,
-                progress: 0,
-                maxTimer: HOME_BASE_PRODUCTION.BALL_TIME_FRAMES,
-                maxQueue: HOME_BASE_PRODUCTION.MAX_QUEUE,
-            };
-            this.heldBall = null; // string ballType, if output is blocked
-        }
-
-        if (this.type === 'EmptyCage') {
-            this.inventory = []; // array of ballType strings
-            this.ballCapacity = 3;
-        }
     }
 
     getPixelPos(board) {
@@ -163,7 +126,7 @@ export class Brick {
     }
 
     getTotalLayers() {
-        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer'];
+        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen'];
         if (!layeredTypes.includes(this.type)) {
             return Math.max(1, Math.floor((this.health - 1) / 10) + 1);
         }
@@ -186,7 +149,7 @@ export class Brick {
 
     getColor() {
         const p = this.p;
-        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer'];
+        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen'];
         
         if (layeredTypes.includes(this.type)) {
             const isMerged = this.widthInCells > 1 || this.heightInCells > 1;
@@ -208,23 +171,19 @@ export class Brick {
             return p.color(...colorValues);
         }
 
-        if (this.type === 'ballCage' || this.type === 'EmptyCage') return p.color(100, 150, 255);
+        if (this.type === 'ballCage') return p.color(100, 150, 255);
         if (this.type === 'explosive' || this.type === 'horizontalStripe' || this.type === 'verticalStripe') return p.color(255, 80, 80);
         if (this.type === 'equipment') return p.color(200, 200, 200);
         
-        if (BRICK_VISUALS.palettes[this.type]) {
-            return p.color(...BRICK_VISUALS.palettes[this.type][0]);
-        }
-
         return p.color(150);
     }
 
-    draw(board, timerState = null, posOverride = null) {
+    draw(board) {
         const p = this.p;
-        const pos = posOverride ? posOverride : this.getPixelPos(board);
+        const pos = this.getPixelPos(board);
         const totalWidth = this.size * this.widthInCells;
         const totalHeight = this.size * this.heightInCells;
-        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer'];
+        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen'];
         
         if (layeredTypes.includes(this.type)) {
             const isMerged = this.widthInCells > 1 || this.heightInCells > 1;
@@ -259,11 +218,11 @@ export class Brick {
             p.noStroke();
             p.fill(shadowColor);
             
-            const baseCornerRadius = (this.type === 'shieldGen' || this.type === 'Farmland' || this.type === 'Sawmill' || this.type === 'BallProducer') ? 8 : 4;
-            p.rect(pos.x, pos.y + extrusion, totalWidth, totalHeight, baseCornerRadius);
+            const baseCornerRadius = (this.type === 'shieldGen') ? [8,8,8,8] : [4];
+            p.rect(pos.x, pos.y + extrusion, totalWidth, totalHeight, ...baseCornerRadius);
             
             p.fill(drawColor);
-            p.rect(pos.x, pos.y, totalWidth, totalHeight, baseCornerRadius);
+            p.rect(pos.x, pos.y, totalWidth, totalHeight, ...baseCornerRadius);
             
             // Draw stacked layers on top
             for (let i = 1; i < numLayers; i++) {
@@ -278,69 +237,23 @@ export class Brick {
                 const layerShadowColor = p.lerpColor(layerColor, p.color(0), 0.4);
 
                 p.fill(layerShadowColor);
-                const layerCornerRadius = (this.type === 'shieldGen' || this.type === 'BallProducer') ? 20 : Math.max(1, 4 - i);
-                p.rect(layerPos.x, layerPos.y + extrusion, layerWidth, layerHeight, layerCornerRadius);
+                const layerCornerRadius = (this.type === 'shieldGen') ? [20, 20, 20, 20] : [Math.max(1, 4 - i)];
+                p.rect(layerPos.x, layerPos.y + extrusion, layerWidth, layerHeight, ...layerCornerRadius);
                 p.fill(layerColor);
-                p.rect(layerPos.x, layerPos.y, layerWidth, layerHeight, layerCornerRadius);
+                p.rect(layerPos.x, layerPos.y, layerWidth, layerHeight, ...layerCornerRadius);
             }
 
             if (this.flashTime > 0) this.flashTime--;
 
-            // Draw icons & patterns on top
+            // Draw icons on top
             const cX = pos.x + totalWidth / 2;
             const cY = pos.y + totalHeight / 2;
-
-            if (this.type === 'FoodStorage' || this.type === 'WoodStorage') {
-                p.stroke(p.lerpColor(drawColor, p.color(0), 0.2));
-                p.strokeWeight(1.5);
-                p.line(pos.x, pos.y, pos.x + totalWidth, pos.y + totalHeight);
-                p.line(pos.x + totalWidth, pos.y, pos.x, pos.y + totalHeight);
-                p.noFill();
-                p.rect(pos.x + 3, pos.y + 3, totalWidth - 6, totalHeight - 6, 2);
-            } else if (this.type === 'Farmland' || this.type === 'Sawmill') {
-                p.stroke(p.lerpColor(drawColor, p.color(0), 0.3));
-                p.strokeWeight(2);
-                for (let i = 1; i < 5; i++) {
-                    const yOff = (totalHeight / 5) * i;
-                    p.line(pos.x, pos.y + yOff, pos.x + totalWidth, pos.y + yOff);
-                }
-            } else if (this.type === 'LogBrick') {
-                p.noFill();
-                p.stroke(p.lerpColor(drawColor, p.color(255), 0.3));
-                p.strokeWeight(1.5);
-                p.ellipse(cX, cY, totalWidth * 0.8, totalHeight * 0.8);
-                p.ellipse(cX, cY, totalWidth * 0.5, totalHeight * 0.5);
-                p.ellipse(cX, cY, totalWidth * 0.2, totalHeight * 0.2);
-            } else if (this.type === 'BallProducer') {
-                p.noFill();
-                p.stroke(p.lerpColor(drawColor, p.color(0), 0.4));
-                p.strokeWeight(2.5);
-                p.ellipse(cX, cY, totalWidth * 0.7, totalHeight * 0.7);
-                p.noStroke();
-                p.fill(p.lerpColor(drawColor, p.color(0), 0.6));
-                p.ellipse(cX, cY, totalWidth * 0.2, totalHeight * 0.2);
-            }
-            
-            let icon, iconSize;
-            switch(this.type) {
-                case 'extraBall':
-                    p.fill(0, 150); 
-                    p.textAlign(p.CENTER, p.CENTER); 
-                    p.textSize(this.size * 0.6); 
-                    p.text('+1', cX, cY + 1); 
-                    break;
-                case 'FoodStorage': icon = '🥕'; iconSize = this.size * 0.8; break;
-                case 'WoodStorage': icon = '🪵'; iconSize = this.size * 0.8; break;
-                case 'Farmland': icon = '🌱'; iconSize = this.size * 0.8; break;
-                case 'Sawmill': icon = '🪚'; iconSize = this.size * 0.8; break;
-            }
-            
-            if (icon) {
+            if (this.type === 'extraBall') {
+                p.fill(0, 150); 
                 p.textAlign(p.CENTER, p.CENTER); 
-                p.textSize(iconSize); 
-                p.text(icon, cX, cY); 
+                p.textSize(this.size * 0.6); 
+                p.text('+1', cX, cY + 1); 
             }
-
         } else if (this.type === 'ballCage') {
             const cX = pos.x + this.size / 2;
             const cY = pos.y + this.size / 2;
@@ -367,54 +280,6 @@ export class Brick {
             p.fill(0, 255, 127);
             p.noStroke();
             p.ellipse(cX, cY, this.size * 0.5);
-
-        } else if (this.type === 'EmptyCage') {
-            const cX = pos.x + this.size / 2;
-            const cY = pos.y + this.size / 2;
-            const cornerRadius = 2;
-            const extrusion = 3;
-            
-            const mainColor = this.getColor();
-            const shadowColor = p.lerpColor(mainColor, p.color(0), 0.4);
-
-            p.noStroke();
-            p.fill(shadowColor);
-            p.rect(pos.x, pos.y + extrusion, this.size, this.size, cornerRadius);
-
-            p.noFill();
-            let borderColor = mainColor;
-            if (this.flashTime > 0) {
-                borderColor = p.lerpColor(mainColor, p.color(255), 0.6);
-                this.flashTime--;
-            }
-            p.stroke(borderColor);
-            p.strokeWeight(3);
-            p.rect(pos.x + 1.5, pos.y + 1.5, this.size - 3, this.size - 3, cornerRadius);
-
-            // Draw balls inside with idle animation
-            const ballRadius = this.size * 0.15;
-            const ballColor = p.color(0, 255, 127);
-            const positions = [
-                { x: cX, y: cY - this.size * 0.15 },
-                { x: cX - this.size * 0.2, y: cY + this.size * 0.15 },
-                { x: cX + this.size * 0.2, y: cY + this.size * 0.15 }
-            ];
-
-            for (let i = 0; i < this.inventory.length; i++) {
-                if (i >= positions.length) break;
-
-                const basePos = positions[i];
-                const animSpeed = 0.03;
-                const animMagnitude = 1.5;
-
-                // Use index `i` to offset the animation for each ball
-                const offsetX = p.cos(p.frameCount * animSpeed + i * p.TWO_PI / 3) * animMagnitude;
-                const offsetY = p.sin(p.frameCount * animSpeed * 1.2 + i * p.TWO_PI / 3) * animMagnitude;
-
-                p.fill(ballColor);
-                p.noStroke();
-                p.ellipse(basePos.x + offsetX, basePos.y + offsetY, ballRadius * 2);
-            }
 
         } else if (this.type === 'equipment') {
             const cX = pos.x + this.size / 2;
@@ -484,34 +349,6 @@ export class Brick {
             }
         }
 
-        // Draw timer on top
-        if ((this.type === 'Farmland' || this.type === 'Sawmill' || this.type === 'BallProducer') && timerState) {
-            const cX = pos.x + totalWidth / 2;
-            const cY = pos.y + totalHeight / 2;
-            const radius = totalWidth * 0.6; // Slightly larger than the brick
-            
-            p.noFill();
-            p.strokeWeight(3);
-    
-            // Background of the timer circle
-            p.stroke(0, 0, 0, 100);
-            p.ellipse(cX, cY, radius);
-            
-            if (timerState.canProduce === false) {
-                // Flashing red
-                const alpha = p.map(p.sin(p.frameCount * 0.2), -1, 1, 50, 200);
-                p.stroke(255, 0, 0, alpha);
-                p.arc(cX, cY, radius, radius, -p.HALF_PI, p.TWO_PI - p.HALF_PI);
-            } else {
-                // Foreground progress arc based on TIME
-                const progress = timerState.timer / timerState.maxTimer;
-                const angle = progress * p.TWO_PI;
-                p.stroke(0, 255, 127, 200); // A green color
-                p.arc(cX, cY, radius, radius, -p.HALF_PI, -p.HALF_PI + angle);
-            }
-        }
-
-
         if (this.isShieldedByAura) {
             p.noFill();
             // Create a slow pulsing alpha between 0 and 128 (0% to ~50%)
@@ -540,35 +377,6 @@ export class Brick {
                  p.ellipse(indicatorX, indicatorY, indicatorSize); 
              }
          }
-        if (this.maxFood > 0 && this.food > 0 && this.foodIndicatorPositions) {
-            const numIndicators = p.min(this.food, this.foodIndicatorPositions.length);
-            p.textAlign(p.CENTER, p.CENTER);
-            const iconSize = this.size * 0.4;
-            p.textSize(iconSize);
-            
-            for (let i = 0; i < numIndicators; i++) {
-                const indicatorX = pos.x + this.foodIndicatorPositions[i].x * this.widthInCells;
-                const indicatorY = pos.y + this.foodIndicatorPositions[i].y * this.heightInCells;
-                p.text('🥕', indicatorX, indicatorY);
-            }
-        }
-        if ((this.type === 'Farmland' || this.type === 'Sawmill') && this.localResourceStorage > 0) {
-            const cX = pos.x + totalWidth / 2;
-            const cY = pos.y + totalHeight / 2;
-            const icon = this.type === 'Farmland' ? '🥕' : '🪵';
-            const text = `${icon}${this.localResourceStorage}`;
-            
-            p.textAlign(p.CENTER, p.CENTER);
-            const textSize = this.size * 0.5;
-            p.textSize(textSize);
-            
-            const textWidth = p.textWidth(text);
-            p.fill(0, 0, 0, 150);
-            p.rect(cX - textWidth/2 - 4, cY - textSize/2 - 2, textWidth + 8, textSize + 4, 4);
-
-            p.fill(255);
-            p.text(text, cX, cY);
-        }
         if (this.maxGems > 0 && this.gems > 0 && this.gemIndicatorPositions) {
             const numIndicators = p.min(this.gems, this.gemIndicatorPositions.length);
             const indicatorSize = this.size / 4;

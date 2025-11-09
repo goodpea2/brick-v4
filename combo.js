@@ -5,40 +5,6 @@ import { UNLOCK_LEVELS } from './balancing.js';
 import { Brick } from './brick.js';
 import { state } from './state.js';
 import * as event from './eventManager.js';
-import { Ball, MiniBall } from './ball.js';
-
-export function handleCombo(type, pos, source, context) { 
-    const { p, isGiantBallTurn, ballsInPlay, combo, maxComboThisTurn, runMaxCombo, getActiveEquipmentForBallType } = context;
-    let newCombo = combo;
-    let newMaxComboThisTurn = maxComboThisTurn;
-    let newRunMaxCombo = runMaxCombo;
-
-    if (isGiantBallTurn || state.mainLevel < UNLOCK_LEVELS.COMBO_MINES) {
-        return { newCombo, newMaxComboThisTurn, newRunMaxCombo };
-    }
-    
-    const isDirectHit = source instanceof Ball || source instanceof MiniBall;
-    if (!isDirectHit) {
-        return { newCombo, newMaxComboThisTurn, newRunMaxCombo };
-    }
-
-    newCombo++;
-    event.dispatch('ComboAdded', { newComboCount: newCombo });
-    newMaxComboThisTurn = p.max(newMaxComboThisTurn, newCombo);
-    newRunMaxCombo = p.max(newRunMaxCombo, newMaxComboThisTurn);
-    
-    if (ballsInPlay.length > 0) {
-        const equipment = getActiveEquipmentForBallType(ballsInPlay[0].type);
-        const comboCatalyst = equipment.find(item => item.id === 'combo_damage');
-        if (comboCatalyst && state.comboParticles.length < 50) {
-            state.comboParticles.push({
-                offset: p.constructor.Vector.random2D().mult(p.random(ballsInPlay[0].radius, ballsInPlay[0].radius * 1.5))
-            });
-        }
-    }
-
-    return { newCombo, newMaxComboThisTurn, newRunMaxCombo };
-}
 
 export function processComboRewards(p, maxComboThisTurn, mainLevel, board, bricks, floatingTexts) {
     if (maxComboThisTurn <= 0) return 0;

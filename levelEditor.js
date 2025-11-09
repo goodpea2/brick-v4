@@ -6,7 +6,6 @@ import { Brick } from './brick.js';
 import { BRICK_STATS } from './balancing.js';
 import { Shockwave } from './vfx.js';
 import { renderGame } from './render.js';
-import * as ui from './ui/index.js';
 
 let gameController = null;
 let undoStack = [];
@@ -14,94 +13,7 @@ const MAX_UNDO_STATES = 50;
 let editorModifiedTiles = new Set();
 let isPainting = false;
 
-function updateHomeBaseEditorPanel() {
-    dom.editorBricksContainer.innerHTML = '';
-    
-    // Sort inventory for consistent display order
-    state.homeBaseInventory.sort((a, b) => {
-        if (a.type < b.type) return -1;
-        if (a.type > b.type) return 1;
-        return a.level - b.level;
-    });
-
-    state.homeBaseInventory.forEach((item, index) => {
-        const btn = document.createElement('button');
-        btn.className = 'editor-btn';
-        btn.dataset.inventoryIndex = index;
-        btn.disabled = item.count === 0 && state.editorTool === 'place';
-
-        // Styling for flex layout
-        btn.style.display = 'flex';
-        btn.style.flexDirection = 'column';
-        btn.style.alignItems = 'center';
-        btn.style.justifyContent = 'center';
-        btn.style.gap = '5px';
-        btn.style.padding = '8px';
-        
-        btn.innerHTML = '';
-        
-        const visual = ui.createBrickVisual({ type: item.type, level: item.level, health: 10 });
-        visual.style.width = '30px';
-        visual.style.height = '30px';
-        visual.style.flexShrink = '0';
-
-        const textContainer = document.createElement('div');
-        textContainer.style.lineHeight = '1.2';
-
-        const levelText = document.createElement('div');
-        levelText.textContent = `Lv.${item.level}`;
-        levelText.style.fontSize = '10px';
-
-        const countText = document.createElement('div');
-        countText.textContent = `x${item.count}`;
-        
-        textContainer.appendChild(levelText);
-        textContainer.appendChild(countText);
-
-        btn.appendChild(visual);
-        btn.appendChild(textContainer);
-
-        btn.addEventListener('click', () => {
-            sounds.buttonClick();
-            setState('object_index', index);
-        });
-        
-        dom.editorBricksContainer.appendChild(btn);
-    });
-    
-    // Update active states
-    document.querySelectorAll('.editor-btn').forEach(btn => btn.classList.remove('active'));
-    let activeToolBtn = document.querySelector(`.editor-btn[data-tool="${state.editorTool}"]`);
-    if(activeToolBtn) activeToolBtn.classList.add('active');
-    
-    if (state.editorTool === 'place' && state.editorSelectedItem) {
-        const currentSortedIndex = state.homeBaseInventory.findIndex(
-            item => item.type === state.editorSelectedItem.type && item.level === state.editorSelectedItem.level
-        );
-        if (currentSortedIndex !== -1) {
-            let activeObjectBtn = document.querySelector(`.editor-btn[data-inventory-index="${currentSortedIndex}"]`);
-            if (activeObjectBtn) activeObjectBtn.classList.add('active');
-        } else {
-            // The selected item is no longer in the inventory
-            state.editorSelectedItem = null;
-        }
-    }
-
-    // Update Finish button state
-    const finishBtn = document.getElementById('finishEditBtn');
-    if (finishBtn) {
-        if (state.homeBaseInventory.length > 0) {
-            finishBtn.disabled = true;
-            finishBtn.title = 'You must place all picked-up bricks before finishing.';
-        } else {
-            finishBtn.disabled = false;
-            finishBtn.title = '';
-        }
-    }
-}
-
-
-function populateAdventureEditorPanel() {
+function populateEditorPanel() {
     const tools = [
         { id: 'place', name: 'Place' }, { id: 'remove', name: 'Remove' },
         { id: 'removeAll', name: 'Remove All' }, { id: 'undo', name: 'Undo' },
@@ -129,7 +41,7 @@ function populateAdventureEditorPanel() {
         btn.textContent = tool.name;
         btn.addEventListener('click', () => {
             sounds.buttonClick();
-gameController.setEditorState('tool', tool.id);
+            gameController.setEditorState('tool', tool.id);
         });
         dom.editorToolsContainer.appendChild(btn);
     });
@@ -166,78 +78,19 @@ gameController.setEditorState('tool', tool.id);
     });
 }
 
-function setupPanelForMode(mode) {
-    if (mode === 'homeBase') {
-        dom.editorObjectsHeader.textContent = 'INVENTORY';
-        dom.editorOverlaysContainer.parentElement.classList.add('hidden');
-        dom.editorActionsSection.classList.remove('hidden');
-        
-        dom.editorToolsContainer.innerHTML = '';
-        [{id: 'place', name: 'Place'}, {id: 'pickup', name: 'Pickup'}].forEach(tool => {
-            const btn = document.createElement('button');
-            btn.className = 'editor-btn';
-            btn.dataset.tool = tool.id;
-            btn.textContent = tool.name;
-            btn.addEventListener('click', () => {
-                sounds.buttonClick();
-                setState('tool', tool.id);
-            });
-            dom.editorToolsContainer.appendChild(btn);
-        });
-
-        updateHomeBaseEditorPanel();
-        
-        // Add Finish button
-        dom.editorActionsSection.innerHTML = '';
-        const finishBtn = document.createElement('button');
-        finishBtn.id = 'finishEditBtn';
-        finishBtn.textContent = 'Finish';
-        finishBtn.className = 'editor-btn';
-        finishBtn.style.width = '100%'; // Make it wider
-        finishBtn.addEventListener('click', () => {
-            sounds.buttonClick();
-            gameController.toggleEditor();
-        });
-        dom.editorActionsSection.appendChild(finishBtn);
-
-    } else { // adventureRun
-        dom.editorObjectsHeader.textContent = 'BRICKS';
-        dom.editorOverlaysContainer.parentElement.classList.remove('hidden');
-        dom.editorActionsSection.classList.remove('hidden');
-        populateAdventureEditorPanel();
-        
-        // Add Finish button
-        dom.editorActionsSection.innerHTML = '';
-        const finishBtn = document.createElement('button');
-        finishBtn.id = 'finishEditBtn';
-        finishBtn.textContent = 'Finish';
-        finishBtn.className = 'editor-btn';
-        finishBtn.style.width = '100%';
-        finishBtn.addEventListener('click', () => {
-            sounds.buttonClick();
-            gameController.toggleEditor();
-        });
-        dom.editorActionsSection.appendChild(finishBtn);
-    }
-    
-    const defaultTool = mode === 'homeBase' ? 'pickup' : 'select';
-    setState('tool', defaultTool);
-}
-
-
 export function initialize(controller) {
     gameController = controller;
+    populateEditorPanel();
 
     dom.levelEditorBtn.addEventListener('click', () => {
         sounds.buttonClick();
-        gameController.toggleEditor();
+        gameController.toggleLevelEditor();
         dom.settingsModal.classList.add('hidden');
         if(state.p5Instance) state.p5Instance.isModalOpen = false;
     });
 }
 
 export function pushUndoState() {
-    if (state.gameMode !== 'adventureRun') return;
     undoStack.push(gameController.exportLevelData());
     if (undoStack.length > MAX_UNDO_STATES) {
         undoStack.shift();
@@ -245,7 +98,6 @@ export function pushUndoState() {
 }
 
 export function popUndoState() {
-    if (state.gameMode !== 'adventureRun') return;
     if (undoStack.length > 0) {
         const prevState = undoStack.pop();
         gameController.importLevelData(prevState, true); // true to prevent gameState change
@@ -253,57 +105,6 @@ export function popUndoState() {
 }
 
 function applyToolActionToTile(p, c, r, board, bricks) {
-    if (state.gameMode === 'homeBase') {
-        const brick = bricks[c]?.[r];
-        let actionTaken = false;
-        switch (state.editorTool) {
-            case 'place':
-                if (!brick && state.editorSelectedItem) {
-                    const item = state.editorSelectedItem;
-                    if (item.count > 0) {
-                        const newBrick = new Brick(p, c - 6, r - 6, item.type, 10, board.gridUnitSize, item.level);
-                        bricks[c][r] = newBrick;
-                        item.count--;
-                        
-                        if (item.count === 0) {
-                            const itemIndex = state.homeBaseInventory.indexOf(item);
-                            if (itemIndex > -1) {
-                                state.homeBaseInventory.splice(itemIndex, 1);
-                            }
-                            state.editorSelectedItem = null; // Deselect
-                        }
-                        actionTaken = true;
-                    }
-                }
-                break;
-            case 'pickup':
-                if (brick) {
-                    const existingStack = state.homeBaseInventory.find(item => item.type === brick.type && item.level === brick.level);
-                    if (existingStack) {
-                        existingStack.count++;
-                    } else {
-                        state.homeBaseInventory.push({ type: brick.type, level: brick.level, count: 1 });
-                    }
-                    const rootC = brick.c + 6, rootR = brick.r + 6;
-                    for (let i = 0; i < brick.widthInCells; i++) {
-                        for (let j = 0; j < brick.heightInCells; j++) {
-                            if (bricks[rootC + i] && bricks[rootC + i][rootR + j] === brick) {
-                                bricks[rootC + i][rootR + j] = null;
-                            }
-                        }
-                    }
-                    actionTaken = true;
-                }
-                break;
-        }
-        if (actionTaken) {
-            gameController.recalculateMaxResources();
-            updateHomeBaseEditorPanel();
-        }
-        return actionTaken;
-    }
-
-    // --- Adventure Run Logic ---
     let actionTaken = false;
     const brick = bricks[c]?.[r];
 
@@ -412,6 +213,7 @@ function performActionAtMouse(p, board, bricks, shockwaves) {
     const coordStr = `${gridC},${gridR}`;
     if (editorModifiedTiles.has(coordStr)) return;
 
+    // Handle 'select' tool
     if (state.editorTool === 'select') {
         if (state.isDeselectingInEditor) state.editorSelection.delete(coordStr);
         else state.editorSelection.add(coordStr);
@@ -421,12 +223,14 @@ function performActionAtMouse(p, board, bricks, shockwaves) {
 
     let actionTaken = false;
     
+    // If we are dragging, ALWAYS act on the tile under the cursor, ignoring selection.
     if (isPainting) {
         if (applyToolActionToTile(p, gridC, gridR, board, bricks)) {
             actionTaken = true;
         }
-    } else {
-        if (state.editorSelection.size > 0 && state.gameMode === 'adventureRun') {
+    } else { // If we are NOT dragging (it's a single click):
+        // If a selection exists, act on the selection.
+        if (state.editorSelection.size > 0) {
             state.editorSelection.forEach(selCoordStr => {
                 const [c, r] = selCoordStr.split(',').map(Number);
                 if(applyToolActionToTile(p, c, r, board, bricks)) {
@@ -434,6 +238,7 @@ function performActionAtMouse(p, board, bricks, shockwaves) {
                 }
             });
         } else {
+        // Otherwise, act on the single clicked tile.
             if (applyToolActionToTile(p, gridC, gridR, board, bricks)) {
                 actionTaken = true;
             }
@@ -450,8 +255,6 @@ function performActionAtMouse(p, board, bricks, shockwaves) {
 export function handleMousePressed(p, board, bricks, shockwaves) {
     isPainting = false;
     editorModifiedTiles.clear();
-    
-    const currentBricks = state.gameMode === 'homeBase' ? gameController.getHomeBaseBricks() : gameController.getBricks();
 
     const tool = state.editorTool;
     if (tool !== 'select') {
@@ -466,13 +269,12 @@ export function handleMousePressed(p, board, bricks, shockwaves) {
         }
     }
     
-    performActionAtMouse(p, board, currentBricks, shockwaves);
+    performActionAtMouse(p, board, bricks, shockwaves);
 }
 
 export function handleMouseDragged(p, board, bricks, shockwaves) {
     isPainting = true;
-    const currentBricks = state.gameMode === 'homeBase' ? gameController.getHomeBaseBricks() : gameController.getBricks();
-    performActionAtMouse(p, board, currentBricks, shockwaves);
+    performActionAtMouse(p, board, bricks, shockwaves);
 }
 
 export function handleMouseReleased() {
@@ -482,25 +284,21 @@ export function handleMouseReleased() {
 }
 
 export function draw(p, renderContext) {
-    const { board, flyingIcons } = renderContext;
-    const bricksToRender = state.gameMode === 'homeBase' ? gameController.getHomeBaseBricks() : renderContext.bricks;
-    const newContext = {...renderContext, bricks: bricksToRender};
-    
-    renderGame(p, newContext, {}); // Pass empty timers for editor
+    const { board } = renderContext;
+    renderGame(p, renderContext);
 
     p.stroke(255, 255, 255, 50);
     p.strokeWeight(1);
     for (let i = 0; i <= board.cols; i++) p.line(board.genX + i * board.gridUnitSize, board.genY, board.genX + i * board.gridUnitSize, board.genY + board.rows * board.gridUnitSize);
     for (let i = 0; i <= board.rows; i++) p.line(board.genX, board.genY + i * board.gridUnitSize, board.genX + board.cols * board.gridUnitSize, board.genY + i * board.gridUnitSize);
 
+    // Draw selection
     p.noStroke();
     p.fill(255, 255, 255, 100);
     state.editorSelection.forEach(coordStr => {
         const [c, r] = coordStr.split(',').map(Number);
         p.rect(board.genX + c * board.gridUnitSize, board.genY + r * board.gridUnitSize, board.gridUnitSize, board.gridUnitSize);
     });
-
-    if (flyingIcons) flyingIcons.forEach(fi => fi.draw());
 
     const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
     const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
@@ -522,26 +320,33 @@ export function draw(p, renderContext) {
 export function toggle() {
     state.isEditorMode = !state.isEditorMode;
     dom.editorPanel.classList.toggle('hidden', !state.isEditorMode);
-    
     dom.ballSelector.classList.toggle('hidden', state.isEditorMode);
     document.querySelector('.toolbar').classList.toggle('hidden', state.isEditorMode);
     dom.speedToggleBtn.classList.toggle('hidden', state.isEditorMode);
-    document.querySelector('.bottom-left-controls').classList.toggle('hidden', state.isEditorMode);
 
+    let finishBtn = document.getElementById('finishEditBtn');
     if (state.isEditorMode) {
-        if (state.gameMode === 'homeBase') {
-            state.homeBaseInventory = []; // Clear inventory on entering editor
+        if (!finishBtn) {
+            finishBtn = document.createElement('button');
+            finishBtn.id = 'finishEditBtn';
+            finishBtn.textContent = 'Finish Editing';
+            finishBtn.className = 'top-right-btn';
+            finishBtn.addEventListener('click', () => {
+                sounds.buttonClick();
+                gameController.toggleLevelEditor();
+            });
+            document.getElementById('game-ui-overlay').appendChild(finishBtn);
         }
-        setupPanelForMode(state.gameMode);
+        finishBtn.classList.remove('hidden');
     } else {
-        ui.updateUIVisibilityForMode(state.gameMode);
+        if (finishBtn) {
+            finishBtn.classList.add('hidden');
+        }
     }
     
     if (state.isEditorMode) {
-        if (state.gameMode === 'adventureRun') {
-            undoStack = [];
-        }
-        setState('tool', state.gameMode === 'homeBase' ? 'pickup' : 'select');
+        undoStack = [];
+        setState('tool', 'select');
         setState('object', 'normal');
     } else {
         state.editorSelection.clear();
@@ -565,26 +370,16 @@ export function setState(type, value) {
             return;
         }
         state.editorTool = value;
-        if (value !== 'place') {
-            state.editorSelectedItem = null;
-        }
-    } else if (type === 'object_index') { // For Home Base inventory
-        state.editorTool = 'place';
-        state.editorSelectedItem = state.homeBaseInventory[value];
-    } else if (type === 'object') { // For Adventure editor
+    } else if (type === 'object') {
         state.editorTool = 'place';
         state.editorObject = value;
     }
     
-    if (state.gameMode === 'homeBase') {
-        updateHomeBaseEditorPanel();
-    } else {
-        document.querySelectorAll('.editor-btn').forEach(btn => btn.classList.remove('active'));
-        let activeBtn = document.querySelector(`.editor-btn[data-tool="${state.editorTool}"]`);
-        if(activeBtn) activeBtn.classList.add('active');
-        if (state.editorTool === 'place') {
-            activeBtn = document.querySelector(`.editor-btn[data-object="${state.editorObject}"]`);
-            if (activeBtn) activeBtn.classList.add('active');
-        }
+    document.querySelectorAll('.editor-btn').forEach(btn => btn.classList.remove('active'));
+    let activeBtn = document.querySelector(`.editor-btn[data-tool="${state.editorTool}"]`);
+    if(activeBtn) activeBtn.classList.add('active');
+    if (state.editorTool === 'place') {
+        activeBtn = document.querySelector(`.editor-btn[data-object="${state.editorObject}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
     }
 }

@@ -152,33 +152,6 @@
       background-color: var(--color-bg2);
     }
     
-    .bottom-left-controls {
-        position: absolute;
-        bottom: 15px;
-        left: 15px;
-        z-index: 100;
-        pointer-events: all;
-        display: flex;
-        gap: 10px;
-    }
-    .bottom-left-btn {
-        position: static;
-        pointer-events: all;
-        border: none;
-        outline: none;
-        cursor: pointer;
-        padding: 10px 15px;
-        transition: 0.3s;
-        background: var(--color-bg2);
-        color: var(--color-text);
-        border-radius: 5px;
-        font-family: 'Inconsolata', monospace;
-        font-size: 1em;
-    }
-    .bottom-left-btn:hover:not(:disabled) {
-        background-color: var(--color-bg3);
-    }
-    
     /* Modal Styles */
     .modal {
       position: fixed;
@@ -232,13 +205,13 @@
       text-align: center;
     }
     
-    #levelUpModal h2, #levelCompleteModal h2, #gameOverModal h2 {
+    #levelUpModal h2, #resultScreen h2 {
         color: #00e5ff;
         font-size: 2.5em;
         text-shadow: 0 0 10px #00e5ff;
     }
     
-    #gameOverModal h2.game-over {
+    #resultScreen h2.game-over {
         color: #ff4136;
         text-shadow: 0 0 10px #ff4136;
     }
@@ -474,65 +447,30 @@
     /* Ball Selector UI */
     #ballSelector {
         position: absolute;
+        left: 50%;
+        bottom: 90px;
+        transform: translateX(-50%);
         background-color: rgba(20, 20, 30, 0.85);
         border-radius: 10px;
         padding: 8px;
         display: flex;
+        flex-direction: row;
         gap: 8px;
         z-index: 100;
         border: 1px solid var(--color-sidebar-border);
         align-items: center;
-        /* Scrolling properties */
-        overflow-x: auto;
-        max-width: 35vh;
-        -ms-overflow-style: none; /* IE and Edge */
-        scrollbar-width: none; /* Firefox */
     }
-    #ballSelector::-webkit-scrollbar {
-        display: none; /* Chrome, Safari, Opera */
-    }
-
 
     #ballSelectorArrow {
-        position: fixed; /* Use fixed to ignore canvas scrolling/zooming */
+        position: absolute;
+        top: -15px;
+        left: 0; /* Position is set by JS */
         font-size: 20px;
         color: var(--color-accent);
-        transition: top 0.15s ease-in-out, left 0.15s ease-in-out;
+        transition: left 0.15s ease-in-out;
         pointer-events: none;
-        z-index: 101; /* Above ball selector */
     }
     
-    #ballTooltip {
-        position: fixed;
-        visibility: hidden;
-        width: 220px;
-        background-color: #282828;
-        color: #f0f0f0;
-        text-align: left;
-        border-radius: 6px;
-        padding: 8px;
-        z-index: 101;
-        opacity: 0;
-        transition: opacity 0.15s, visibility 0.15s;
-        font-size: 12px;
-        pointer-events: none;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    }
-    #ballTooltip .tooltip-header {
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 4px;
-    }
-    #ballTooltip .tooltip-icons-container {
-        display: flex;
-        gap: 2px;
-    }
-    #ballTooltip .tooltip-equip-icon {
-        font-size: 14px;
-    }
-
     #openEquipmentBtn {
         border: none;
         background: none;
@@ -573,7 +511,6 @@
         transition: all 0.2s ease;
         position: relative;
         padding: 0; /* Remove padding for visual div */
-        flex-shrink: 0; /* Prevent buttons from shrinking */
     }
 
     .ball-select-btn:hover:not(:disabled) {
@@ -601,6 +538,45 @@
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
+    }
+
+    .ball-select-btn .tooltip {
+        visibility: hidden;
+        width: 220px;
+        background-color: #282828;
+        color: #f0f0f0;
+        text-align: left;
+        border-radius: 6px;
+        padding: 8px;
+        position: absolute;
+        z-index: 1;
+        bottom: 125%; /* Default: above button */
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 12px;
+        pointer-events: none;
+    }
+
+    .ball-select-btn .tooltip-header {
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+    }
+    .ball-select-btn .tooltip-icons-container {
+        display: flex;
+        gap: 2px;
+    }
+    .ball-select-btn .tooltip-equip-icon {
+        font-size: 14px;
+    }
+
+    .ball-select-btn:hover .tooltip {
+        visibility: visible;
+        opacity: 1;
     }
 
     .ball-select-btn .ball-count-badge {
@@ -672,11 +648,18 @@
         color: white;
         text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
     }
+
+    .top-left-stats {
+        position: absolute;
+        top: 15px; /* More space from the top */
+        left: 15px;
+    }
     
     .level-display {
         display: flex;
         align-items: center;
         gap: 12px;
+        margin-bottom: 8px;
     }
 
     #player-level-badge {
@@ -731,6 +714,29 @@
         font-size: 0.9em;
     }
 
+    .stat-line {
+        margin-bottom: 5px;
+    }
+
+    .main-stats {
+        font-size: 1.2em;
+    }
+
+    .stat-item {
+        margin-right: 15px;
+    }
+
+    .level-color { color: #87CEEB; } /* Sky Blue */
+    .score-color { color: #98FB98; } /* Pale Green */
+    .balls-color { color: #FFD700; } /* Gold */
+    .giant-ball-color { color: #BA55D3; } /* Medium Orchid */
+
+
+    .seed-stat {
+        font-size: 0.8em;
+        color: #aaa;
+    }
+
     .debug-stats {
         font-size: 0.8em;
         color: #f39c12; /* Orange for debug */
@@ -738,88 +744,41 @@
 
     .top-right-hud {
         position: absolute;
-        top: 15px;
+        top: 25px;
         right: 15px;
         display: flex;
-        flex-direction: column;
         gap: 10px;
-        align-items: flex-end;
+        align-items: center;
     }
 
-    .gem-bank, .resource-bank {
-        background-color: rgba(0,0,0,0.5);
+    .coin-bank, .gem-bank {
+        position: relative;
+        top: auto;
+        right: auto;
+        font-size: 1.5em;
+        background-color: rgba(0,0,0,0.3);
         padding: 5px 15px;
         border-radius: 20px;
-        font-size: 1.2em;
-        pointer-events: all;
+        pointer-events: all; /* Make it clickable */
         cursor: pointer;
         transition: transform 0.1s;
-        position: relative;
-        overflow: hidden; /* For tooltip and bar */
-    }
-    .gem-bank:hover, .resource-bank:hover {
-        transform: scale(1.05);
-    }
-    .gem-bank {
-        border: 2px solid #00e5ff;
-    }
-    .resource-bank {
-        width: 120px;
-        text-align: right;
-        padding: 6px 6px;
-    }
-    .food-bank {
-    }
-    .wood-bank {
-    }
-    .resource-bar-fill {
-        position: absolute;
-        top: 0;
-        right: 0;
-        height: 100%;
-        background-color: rgba(255,255,255,0.2);
-        z-index: 0;
-        transition: width 0.3s;
-    }
-    .resource-text {
-        position: relative;
-        z-index: 1;
-    }
-    #food-bar-fill {
-        background-color: rgba(232, 159, 35, 0.5); /* Orange */
-    }
-    #wood-bar-fill {
-        background-color: rgba(139, 90, 43, 0.5); /* Brown */
-    }
-    .resource-bank .tooltip {
-        visibility: hidden;
-        position: absolute;
-        bottom: 110%;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: var(--color-bg);
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 0.8em;
-        opacity: 0;
-        transition: opacity 0.2s;
-        white-space: nowrap;
-        z-index: 2;
-    }
-    .resource-bank:hover .tooltip {
-        visibility: visible;
-        opacity: 1;
     }
 
-    .top-right-controls {
-        position: absolute;
-        top: 60px;
-        right: 15px;
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
+    .coin-bank {
+        border: 1px solid #FFD700;
     }
+    .gem-bank {
+        border: 1px solid #00e5ff;
+    }
+
+    .coin-bank:hover, .gem-bank:hover {
+        transform: scale(1.05);
+    }
+    
     .top-right-btn {
+        position: absolute;
+        top: 80px; 
+        right: 15px;
         pointer-events: all;
         cursor: pointer;
         border: none;
@@ -847,7 +806,7 @@
     
     #cheat-buttons-container {
         position: absolute;
-        top: 130px;
+        top: 120px;
         right: 15px;
         display: flex;
         flex-direction: column;
@@ -898,7 +857,7 @@
 
 
     /* Coin Particle VFX */
-    .coin-particle, .food-particle, .wood-particle {
+    .coin-particle {
         position: absolute;
         width: 12px;
         height: 12px;
@@ -908,15 +867,6 @@
         z-index: 100;
         pointer-events: none;
         transition: transform 1s cubic-bezier(0.5, -0.5, 0.5, 1.5), opacity 1s linear;
-    }
-    .food-particle {
-        background-color: #e89f23;
-        border-color: #c7881e;
-    }
-    .wood-particle {
-        background-color: #8b5a2b;
-        border-color: #6a4622;
-        border-radius: 2px;
     }
     
     /* Gem Particle VFX */
@@ -968,7 +918,7 @@
         margin-top: 20px;
         text-align: left;
     }
-    .result-stats-grid .stat-box {
+    .stat-box {
         background-color: var(--color-bg);
         padding: 10px;
         border-radius: 5px;
@@ -1199,19 +1149,15 @@
     }
     
     /* Skill Tree */
-     #skillTreeModal .modal-content, #homeBaseShopModal .modal-content {
+     #skillTreeModal .modal-content {
         overflow-x: hidden;
     }
-    #skill-tree-container, #home-base-shop-container {
+    #skill-tree-container {
         display: flex;
         flex-direction: column;
         gap: 15px;
         margin-top: 10px;
     }
-    #home-base-shop-container .skill-card {
-        min-height: 140px;
-    }
-
     .skill-tree-row {
         display: flex;
         gap: 15px;
@@ -1281,232 +1227,6 @@
         border-radius: 10px;
     }
 
-    /* Left-side UI Structure */
-    #left-ui-container {
-        position: absolute;
-        left: 10px;
-        top: 15px;
-        z-index: 100;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        align-items: flex-start;
-        pointer-events: none;
-    }
-    #left-context-panel, #run-loot-panel {
-         pointer-events: all;
-    }
-    
-    #run-loot-panel {
-
-    }
-
-
-    /* Left-side Context Panel */
-    #left-context-panel {
-        background-color: rgba(20, 20, 30, 0.9);
-        border-radius: 10px;
-        padding: 10px;
-        border: 1px solid var(--color-sidebar-border);
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        width: 240px;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-
-    #left-context-panel .panel-divider {
-        border: none;
-        border-top: 1px solid var(--color-sidebar-border);
-        margin: 0;
-    }
-
-    #run-context-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-    }
-    
-    #run-context-panel #game-mode-header {
-        color: #87CEEB;
-        font-size: 1.1em;
-        margin: 0;
-    }
-    .run-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-    }
-    .run-stats-grid .stat-box {
-        background-color: var(--color-bg2);
-        border: 1px solid var(--color-sidebar-border);
-        border-radius: 8px;
-        padding: 4px;
-        text-align: center;
-    }
-     .run-stats-grid .stat-box.interactive {
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    .run-stats-grid .stat-box.interactive:hover {
-        background-color: var(--color-bg3);
-    }
-    #run-shop-btn {
-        border: 1px solid #FFD700;
-        width: 100px;
-    }
-    .run-stats-grid .stat-label {
-        font-size: 0.8em;
-        color: #aaa;
-    }
-    .run-stats-grid .stat-value {
-        font-size: 1.2em;
-        font-weight: bold;
-    }
-    #run-loot-panel h4 {
-        margin: 0 0 8px 0;
-        font-size: 0.8em;
-        color: #ccc;
-        border-bottom: 1px solid var(--color-sidebar-border);
-        padding-bottom: 4px;
-        padding-top: 4px;
-    }
-    .loot-line {
-        display: flex;
-        font-size: 1.1em;
-        margin-bottom: 5px;
-    }
-    
-    .context-section h4 {
-        margin: 0 0 8px 0;
-        font-size: 0.9em;
-        color: #00e5ff;
-        border-bottom: 1px solid var(--color-sidebar-border);
-        padding-bottom: 4px;
-    }
-    
-    #ball-producer-ui .producer-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        margin-bottom: 10px;
-    }
-    #ball-producer-ui .producer-header h4 {
-        margin: 0;
-        border: none;
-        padding: 0;
-    }
-    #ball-producer-ui .production-queue-count {
-        font-size: 0.9em;
-        color: #aaa;
-    }
-    
-    #ball-producer-ui .producer-grid,
-    #empty-cage-ui .producer-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-    }
-    
-    #ball-producer-ui .producer-card,
-    #empty-cage-ui .producer-card {
-        background: var(--color-bg2);
-        border: 1px solid var(--color-sidebar-border);
-        color: var(--color-text);
-        border-radius: 5px;
-        padding: 8px;
-        cursor: pointer;
-        text-align: center;
-        transition: background-color 0.2s, border-color 0.2s;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        position: relative;
-        overflow: hidden;
-        min-height: 80px;
-    }
-    #ball-producer-ui .producer-card:hover:not(:disabled),
-    #empty-cage-ui .producer-card:not(.empty-slot):hover {
-        background-color: var(--color-bg3);
-    }
-    #ball-producer-ui .producer-card:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        background-color: var(--color-bg2);
-    }
-    #ball-producer-ui .producer-card.active-production {
-        border-color: #00e5ff;
-    }
-    #ball-producer-ui .producer-card .ball-visual,
-    #empty-cage-ui .producer-card .ball-visual {
-        width: 30px;
-        height: 30px;
-    }
-    .producer-card-info {
-        font-size: 11px;
-        line-height: 1.2;
-    }
-    .card-header {
-        position: absolute;
-        top: 2px;
-        left: 4px;
-        font-size: 14px;
-        font-weight: bold;
-        color: #fff;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    }
-    .card-cancel-btn {
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        width: 16px;
-        height: 16px;
-        background-color: #ff4136;
-        color: white;
-        border: 1px solid white;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 10px;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1;
-        transition: transform 0.2s;
-        z-index: 2;
-    }
-    .card-cancel-btn:hover {
-        transform: scale(1.2);
-    }
-    .card-progress-bar {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: 6px;
-        background-color: rgba(0,0,0,0.4);
-    }
-    .card-progress-fill {
-        height: 100%;
-        background-color: #00e5ff;
-        width: 0%; /* Set by JS */
-        transition: width 0.1s linear;
-    }
-
-    #empty-cage-ui .producer-card {
-        cursor: default;
-    }
-    #empty-cage-ui .producer-card.empty-slot {
-        background: var(--color-bg);
-        opacity: 0.6;
-    }
-    #empty-cage-ui .producer-card.empty-slot:hover {
-        background: var(--color-bg);
-    }
-
     /* Level Editor Panel */
     #editor-panel {
         position: absolute;
@@ -1555,226 +1275,35 @@
         border-color: #00e5ff;
         background-color: #00373d;
     }
-    
-    /* Brick Info Panel */
-    #brick-info-panel {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 280px;
-        background-color: var(--color-bg2);
-        border-radius: 8px;
-        border: 1px solid var(--color-sidebar-border);
-        padding: 20px;
-        color: var(--color-text);
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-        font-size: 14px;
-    }
-    .brick-info-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        border-bottom: 1px solid var(--color-sidebar-border);
-        padding-bottom: 10px;
-        margin-bottom: -5px;
-    }
-    .brick-info-header h3 {
-        font-size: 1.5em;
-        margin: 0;
-    }
-    .brick-info-header span {
-        font-size: 0.9em;
-        font-weight: bold;
-        background-color: var(--color-bg3);
-        padding: 2px 6px;
-        border-radius: 4px;
-    }
-    #brick-info-description {
-        font-size: 0.9em;
-        color: #ccc;
-        font-style: italic;
-    }
-    #brick-info-stats {
-        list-style: none;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-    #brick-info-stats li {
-        display: flex;
-        justify-content: space-between;
-    }
-    #brick-info-stats li span:first-child {
-        color: #aaa;
-    }
-    #brick-info-stats li span:last-child {
-        font-weight: bold;
-    }
-    .upgrade-section {
-        background-color: var(--color-bg);
-        border-radius: 6px;
-        padding: 15px;
-        margin-top: 10px;
-    }
-    .upgrade-recipe {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        margin-bottom: 15px;
-    }
-    #upgrade-inputs-container {
-        display: flex;
-        gap: 5px;
-    }
-    .recipe-brick-item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        font-size: 11px;
-    }
-    .recipe-brick-visual {
-        width: 30px;
-        height: 30px;
-        border-radius: 4px;
-        position: relative;
-    }
-    .recipe-brick-visual .layer {
-        position: absolute;
-        border-radius: 2px;
-    }
-    .recipe-brick-amount {
-        color: #aaa;
-    }
-    .upgrade-recipe .arrow {
-        font-size: 2em;
-        color: #aaa;
-    }
-    #brick-upgrade-btn {
-        width: 100%;
-        background-color: var(--color-bg3);
-        border: none;
-        color: var(--color-text);
-        padding: 12px;
-        border-radius: 5px;
-        font-family: 'Inconsolata', monospace;
-        font-size: 1.1em;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    #brick-upgrade-btn:hover:not(:disabled) {
-        background-color: #555;
-    }
-    
-    
-    /* Game Mode Modals */
-    .gamemode-selection {
-        display: flex;
-        gap: 20px;
-        margin-top: 20px;
-    }
-    .gamemode-card {
-        flex: 1;
-        background-color: var(--color-bg);
-        padding: 20px;
-        border-radius: 8px;
-        border: 1px solid var(--color-sidebar-border);
-        display: flex;
-        flex-direction: column;
-    }
-    .gamemode-card h3 {
-        margin-top: 0;
-        color: #00e5ff;
-    }
-    .gamemode-card p {
-        flex-grow: 1;
-        color: #ccc;
-        margin-bottom: 20px;
-    }
-    .gamemode-card.locked {
-        filter: grayscale(80%);
-        opacity: 0.7;
-    }
-    .modal-button-group {
-        display: flex;
-        gap: 15px;
-        margin-top: 25px;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    .modal-button-group .modal-action-button {
-        margin-top: 0;
-        flex-grow: 1;
-    }
-    .modal-action-button.danger {
-        background-color: #ff4136;
-        color: #fff;
-    }
-    .modal-action-button.danger:hover {
-        background-color: #d9362d;
-    }
-    .modal-action-button.secondary {
-        background-color: var(--color-bg3);
-    }
-    .modal-action-button.secondary:hover {
-        background-color: #555;
-    }
-    
-    @media (max-width: 600px) {
-        .gamemode-selection {
-            flex-direction: column;
-        }
-    }
 
-
-    /* Portrait mode for editor panel */
-    @media (orientation: portrait) {
-        #editor-panel {
-            flex-direction: row;
-            height: auto;
-            width: 100vw;
-            max-height: 25vh;
-            left: 50%;
-            top: auto;
-            bottom: 20px;
-            transform: translateX(-50%);
-            overflow-x: auto;
-            overflow-y: auto;
-            gap: 20px;
-            padding: 15px;
-        }
-
-        #editor-panel .editor-section {
-            flex-shrink: 0;
-        }
-    }
 
     /* Landscape mode for ball selector */
     @media (orientation: landscape) {
         #ballSelector {
             left: 30px;
-            top: 70%;
+            top: 50%;
             bottom: auto;
             transform: translateY(-50%);
             flex-direction: column;
-            overflow-y: auto;
-            overflow-x: hidden;
-            max-height: 35vh;
-            max-width: initial;
         }
         
         #ballSelectorArrow {
-            transform: rotate(-90deg);
+            top: 50%;
+            left: -15px;
+            transform: translateY(-50%) rotate(-90deg);
+            transition: top 0.15s ease-in-out, left 0.15s ease-in-out;
         }
 
         #openEquipmentBtn {
             margin-right: 0;
             margin-bottom: 5px;
+        }
+
+        .ball-select-btn .tooltip {
+            left: 125%;
+            top: 50%;
+            bottom: auto;
+            transform: translateY(-50%);
         }
     }
 
@@ -1833,6 +1362,12 @@
         padding: 8px 10px;
         font-size: 0.8em;
       }
+
+      .top-left-stats, .coin-bank {
+          font-size: 0.9em;
+      }
+      .main-stats { font-size: 1em; }
+      .coin-bank { font-size: 1.2em; }
       
       #editor-panel {
         width: 150px;
@@ -1853,38 +1388,41 @@
         <div id="xp-bar-pending-fill"></div>
     </div>
     <div id="game-ui-overlay">
+        <div class="top-left-stats">
+             <div class="level-display">
+                <div id="player-level-badge">
+                    <span id="player-level-stat">1</span>
+                </div>
+                <div class="xp-text-display">
+                    <span id="xp-value-text">0 / 50 XP</span>
+                    <span id="xp-pending-text" class="hidden">(+0 XP)</span>
+                </div>
+            </div>
+            <div class="stat-line main-stats">
+                <span class="stat-item">Level: <span id="level-stat" class="level-color">1</span></span>
+                <span class="stat-item">Balls: <span id="balls-stat" class="balls-color">5</span></span>
+            </div>
+            <div class="stat-line seed-stat">
+                Seed: <span id="seed-stat">...</span>
+            </div>
+            <div id="debugStatsContainer" class="stat-line debug-stats hidden">
+                <div>Lifetime: <span id="debug-lifetime-gem-stat">0</span>💎 <span id="debug-lifetime-xp-stat">0</span>XP</div>
+                <div>HP: <span id="debug-hp-stat">0 / 0</span></div>
+                <div>Coins: <span id="debug-coin-stat">0 / 0</span></div>
+                <div id="debug-equipment-stat"></div>
+                <div id="debug-ball-info"></div>
+                <div id="debug-event-log"></div>
+            </div>
+        </div>
         <div class="top-right-hud">
             <div class="gem-bank" title="Open Skill Tree">
-                 <span id="gem-stat">0</span> 💎
+                <span id="gem-stat">0</span> 💎
             </div>
-             <div class="resource-bank food-bank">
-                <div class="resource-bar-fill" id="food-bar-fill"></div>
-                <span class="resource-text"><span id="food-stat">1000</span> 🥕</span>
-                <div class="tooltip">Max: 1000</div>
-            </div>
-            <div class="resource-bank wood-bank">
-                <div class="resource-bar-fill" id="wood-bar-fill"></div>
-                <span class="resource-text"><span id="wood-stat">1000</span> 🪵</span>
-                <div class="tooltip">Max: 1000</div>
+            <div class="coin-bank" title="Open Shop">
+                <span id="coin-stat">0</span> 🪙
             </div>
         </div>
-        <!-- Hidden elements for programmatic clicks -->
-        <div class="coin-bank" title="Open Shop" style="display: none;">
-            <span id="coin-stat">0</span> 🪙
-        </div>
-        
-        <div id="debugStatsContainer" class="stat-line debug-stats hidden" style="position: absolute; top: 15px; left: 15px;">
-            <div>Lifetime: <span id="debug-lifetime-gem-stat">0</span>💎 <span id="debug-lifetime-xp-stat">0</span>XP</div>
-            <div>HP: <span id="debug-hp-stat">0 / 0</span></div>
-            <div>Coins: <span id="debug-coin-stat">0 / 0</span></div>
-            <div id="debug-equipment-stat"></div>
-            <div id="debug-ball-info"></div>
-            <div id="debug-event-log"></div>
-        </div>
-        <div class="top-right-controls">
-            <button id="speedToggleBtn" class="top-right-btn">Speed Up</button>
-            <button id="debugViewBtn" class="top-right-btn">Debug View</button>
-        </div>
+        <button id="speedToggleBtn" class="top-right-btn">Speed Up</button>
         <div id="cheat-buttons-container" class="hidden">
             <div class="debug-toggle-group">
                 <label><input type="checkbox" id="toggleEventLog"> Show Event Logs</label>
@@ -1894,8 +1432,6 @@
             <button id="cheatGemBtn" class="cheat-btn">+500 💎</button>
             <button id="cheatXpBtn" class="cheat-btn">+5000 XP</button>
             <button id="cheatLevelBtn" class="cheat-btn">+10 Lvl</button>
-            <button id="cheatFoodBtn" class="cheat-btn">+10k 🥕</button>
-            <button id="cheatWoodBtn" class="cheat-btn">+10k 🪵</button>
             <button id="cheatGiantBallBtn" class="cheat-btn">+1 Giant</button>
             <button id="cheatGoldenShotBtn" class="cheat-btn">Trigger Golden</button>
             <button id="cheatGetAllEqCommon" class="cheat-btn">All Common Eq</button>
@@ -1910,92 +1446,41 @@
       <div class="main-container">
         <div id="canvas-container"></div>
          <div id="ballSelector" class="hidden">
+            <div id="ballSelectorArrow">▼</div>
             <button id="openEquipmentBtn">Equip</button>
             <button class="ball-select-btn active" data-ball-type="classic">
                 <div class="ball-visual"></div>
-                <span class="ball-count-badge hidden"></span>
+                <div class="tooltip"></div>
             </button>
             <button class="ball-select-btn hidden" data-ball-type="explosive">
                 <div class="ball-visual"></div>
-                <span class="ball-count-badge hidden"></span>
+                <div class="tooltip"></div>
             </button>
             <button class="ball-select-btn hidden" data-ball-type="piercing">
                  <div class="ball-visual"></div>
-                 <span class="ball-count-badge hidden"></span>
+                 <div class="tooltip"></div>
             </button>
             <button class="ball-select-btn hidden" data-ball-type="split">
                  <div class="ball-visual"></div>
-                 <span class="ball-count-badge hidden"></span>
+                 <div class="tooltip"></div>
             </button>
             <button class="ball-select-btn hidden" data-ball-type="brick">
                  <div class="ball-visual"></div>
-                 <span class="ball-count-badge hidden"></span>
+                 <div class="tooltip"></div>
             </button>
              <button class="ball-select-btn hidden" data-ball-type="bullet">
                 <div class="ball-visual"></div>
-                <span class="ball-count-badge hidden"></span>
+                <div class="tooltip"></div>
             </button>
              <button class="ball-select-btn hidden" data-ball-type="homing">
                 <div class="ball-visual"></div>
-                <span class="ball-count-badge hidden"></span>
+                <div class="tooltip"></div>
             </button>
             <button class="ball-select-btn hidden" data-ball-type="giant">
                 <div class="ball-visual"></div>
                 <span class="ball-count-badge hidden">0</span>
+                <div class="tooltip"></div>
             </button>
-        </div>
-        <div id="ballSelectorArrow">▼</div>
-        <div id="ballTooltip" class="hidden"></div>
-        <div id="left-ui-container">
-            <div id="left-context-panel" class="hidden">
-                <div class="level-display">
-                    <div id="player-level-badge">
-                        <span id="player-level-stat">1</span>
-                    </div>
-                    <div class="xp-text-display">
-                        <span id="xp-value-text">0 / 50 XP</span>
-                        <span id="xp-pending-text" class="hidden">(+0 XP)</span>
-                    </div>
-                </div>
-                <hr class="panel-divider">
-                <div id="run-context-panel" class="hidden">
-                    <h3 id="game-mode-header">ADVENTURE RUN - LVL 1</h3>
-                    <div class="run-stats-grid">
-                        <div class="stat-box">
-                            <span class="stat-label">Balls</span>
-                            <span id="run-ball-count" class="stat-value">0</span>
-                        </div>
-                        <button id="run-shop-btn" class="stat-box interactive">
-                            <span class="stat-label">Shop</span>
-                            <span class="stat-value">🪙 <span id="run-shop-coin-count">0</span></span>
-                        </button>
-                        <button id="run-equipment-btn" class="stat-box interactive">
-                            <span class="stat-label">Equipment</span>
-                            <span id="run-equipment-count" class="stat-value">0</span>
-                        </button>
-                    </div>
-                </div>
-                <div id="ball-producer-ui" class="context-section hidden">
-                    <div class="producer-header">
-                        <h4>PRODUCE BALL</h4>
-                        <span class="production-queue-count">Queue: 0/4</span>
-                    </div>
-                    <div class="producer-grid"></div>
-                </div>
-                <div id="empty-cage-ui" class="context-section hidden">
-                    <h4>STORED BALLS</h4>
-                    <div class="producer-grid"></div>
-                </div>
-            </div>
-            <div id="run-loot-panel" class="context-section hidden">
-                <h4>Collected</h4>
-                <div class="loot-line">
-                    <span>🥕</span> <span id="run-food-count">0</span>
-                </div>
-                <div class="loot-line">
-                    <span>🪵</span> <span id="run-wood-count">0</span>
-                </div>
-            </div>
         </div>
         <div id="editor-panel" class="hidden">
             <div id="editor-tools-section" class="editor-section">
@@ -2003,44 +1488,20 @@
                 <div class="editor-grid"></div>
             </div>
             <div id="editor-bricks-section" class="editor-section">
-                <h4 id="editor-objects-header">BRICKS</h4>
+                <h4>BRICKS</h4>
                 <div class="editor-grid"></div>
             </div>
             <div id="editor-overlays-section" class="editor-section">
                 <h4>OVERLAYS</h4>
                 <div class="editor-grid"></div>
             </div>
-            <div id="editor-actions-section" class="editor-section">
-                <!-- Finish button will be injected here for HomeBaseEditor -->
-            </div>
-        </div>
-        <div id="brick-info-panel" class="hidden">
-            <div class="brick-info-header">
-                <h3 id="brick-info-name"></h3>
-                <span id="brick-info-level"></span>
-            </div>
-            <p id="brick-info-description"></p>
-            <ul id="brick-info-stats"></ul>
-            <div class="upgrade-section">
-                <div class="upgrade-recipe">
-                    <div id="upgrade-inputs-container"></div>
-                    <span class="arrow">&rarr;</span>
-                    <div id="upgrade-output-container"></div>
-                </div>
-                <button id="brick-upgrade-btn">Upgrade <span id="brick-upgrade-cost"></span></button>
-            </div>
-        </div>
-        <div class="bottom-left-controls">
-            <button id="modeToggleBtn" class="bottom-left-btn hidden">Play</button>
-            <button id="editBaseBtn" class="bottom-left-btn hidden">Edit Base</button>
-            <button id="homeBaseShopBtn" class="bottom-left-btn hidden">Shop</button>
-            <button id="enchantBtn" class="bottom-left-btn hidden">Enchant</button>
         </div>
         <div class="toolbar">
            <button id="levelSettingsButton">Level Settings</button>
            <button id="prevLevelBtn">Prev Level</button>
            <button id="nextLevelBtn">Next Level</button>
            <button id="pauseResumeBtn">Pause</button>
+           <button id="debugViewBtn">Debug View</button>
            <button id="clear">Reset</button>
         </div>
       </div>
@@ -2107,8 +1568,8 @@
           </div>
            <div class="form-group">
             <label for="explosiveBrickChance">Explosive Chance:</label>
-            <input type="range" id="explosiveBrickChance" min="0" max="1" step="0.01" value="0.04">
-            <span id="explosiveBrickChanceValue">0.04</span>
+            <input type="range" id="explosiveBrickChance" min="0" max="1" step="0.01" value="0.05">
+            <span id="explosiveBrickChanceValue">0.05</span>
           </div>
            <div class="form-group">
             <label for="ballCageBrickChance">Ball Cage Chance:</label>
@@ -2298,91 +1759,38 @@
     </div>
   </div>
   
-  <!-- Level Complete Popup -->
-    <div id="levelCompleteModal" class="modal hidden">
-        <div class="modal-content">
-            <h2>Level Complete!</h2>
+  <!-- Result Screen Popup -->
+  <div id="resultScreen" class="modal hidden">
+    <div class="modal-content">
+        <h2 id="resultTitle"></h2>
+        <div id="resultStatsContainer" class="hidden">
+            <hr>
             <div class="result-stats-grid">
                 <div class="stat-box">
                     <span class="stat-label">Balls Used</span>
-                    <span id="statLC-BallsUsed" class="stat-value">0</span>
+                    <span id="statBallsUsed" class="stat-value">0</span>
                 </div>
                 <div class="stat-box">
                     <span class="stat-label">Damage Dealt</span>
-                    <span id="statLC-DamageDealt" class="stat-value">0</span>
+                    <span id="statDamageDealt" class="stat-value">0</span>
                 </div>
                 <div class="stat-box">
                     <span class="stat-label">Best Turn Damage</span>
-                    <span id="statLC-BestTurnDamage" class="stat-value">0</span>
+                    <span id="statBestTurnDamage" class="stat-value">0</span>
                 </div>
                 <div class="stat-box">
                     <span class="stat-label">Coins Collected</span>
-                    <span id="statLC-CoinsCollected" class="stat-value">0</span>
+                    <span id="statCoinsCollected" class="stat-value">0</span>
                 </div>
                 <div class="stat-box">
                     <span class="stat-label">XP Collected</span>
-                    <span id="statLC-XpCollected" class="stat-value">0</span>
+                    <span id="statXpCollected" class="stat-value">0</span>
                 </div>
-            </div>
-            <div id="levelCompleteChoices" class="modal-button-group">
-                <!-- Branching room choices will be injected here -->
             </div>
         </div>
+        <button id="resultContinueButton" class="modal-action-button">Continue</button>
     </div>
-
-    <!-- Game Over Popup -->
-    <div id="gameOverModal" class="modal hidden">
-        <div class="modal-content">
-            <h2 id="gameOverTitle">Game Over</h2>
-            <div class="result-stats-grid">
-                <div class="stat-box">
-                    <span class="stat-label">Level Reached</span>
-                    <span id="statGO-LevelReached" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Total Balls Used</span>
-                    <span id="statGO-TotalBallsUsed" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Total Damage Dealt</span>
-                    <span id="statGO-TotalDamageDealt" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Best Combo</span>
-                    <span id="statGO-BestCombo" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Total Equipment Collected</span>
-                    <span id="statGO-TotalEquipCollected" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Total Coins Collected</span>
-                    <span id="statGO-TotalCoinsCollected" class="stat-value">0</span>
-                </div>
-            </div>
-            <hr>
-            <h4>Total Resources Collected</h4>
-            <div class="result-stats-grid">
-                <div class="stat-box">
-                    <span class="stat-label">XP</span>
-                    <span id="statGO-XpCollected" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Gems 💎</span>
-                    <span id="statGO-GemsCollected" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Food 🥕</span>
-                    <span id="statGO-FoodCollected" class="stat-value">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Wood 🪵</span>
-                    <span id="statGO-WoodCollected" class="stat-value">0</span>
-                </div>
-            </div>
-            <button id="gameOverContinueButton" class="modal-action-button">Continue</button>
-        </div>
-    </div>
+  </div>
 
   <!-- Equipment Popup Panel -->
   <div id="equipmentModal" class="modal hidden">
@@ -2409,35 +1817,14 @@
             <span class="close-button">&times;</span>
             <div class="shop-header">
                 <div class="shop-header-left"></div>
-                <h2>Adventure Run Skill Tree</h2>
+                <h2>Skill Tree</h2>
                 <div class="shop-header-right">
                     <span id="skillTreeGemCount">0</span> 💎
                 </div>
             </div>
-            <p>Spend Gems on permanent upgrades for your Adventure Runs!</p>
+            <p>Spend Gems on permanent upgrades!</p>
             <div id="skill-tree-container">
                 <!-- Skill tree rows will be dynamically inserted here -->
-            </div>
-        </div>
-    </div>
-
-  <!-- Home Base Shop Popup Panel -->
-    <div id="homeBaseShopModal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <div class="shop-header">
-                <div class="shop-header-left" style="font-size: 1.2em;">
-                    <span id="shopFoodCount">0</span> 🥕 &nbsp;
-                    <span id="shopWoodCount">0</span> 🪵
-                </div>
-                <h2>Home Base Shop</h2>
-                <div class="shop-header-right">
-                    <span id="shopGemCount">0</span> 💎
-                </div>
-            </div>
-            <p>Spend resources to expand your base!</p>
-            <div id="home-base-shop-container" class="upgrades-grid" style="margin-top: 20px;">
-                <!-- Shop items will be dynamically inserted here -->
             </div>
         </div>
     </div>
@@ -2462,60 +1849,6 @@
           <textarea id="importDataTextarea" placeholder="Paste level data here..."></textarea>
           <button id="importConfirmBtn" class="modal-action-button">Import</button>
       </div>
-  </div>
-  
-  <!-- Game Mode Selection Modal -->
-  <div id="gameModeModal" class="modal hidden">
-    <div class="modal-content">
-        <span class="close-button">&times;</span>
-        <h2>Select Game Mode</h2>
-        <div class="gamemode-selection">
-            <div class="gamemode-card">
-                <h3>Adventure Run</h3>
-                <p id="adventureRunDescription"></p>
-                <button id="adventureRunBtn" class="modal-action-button">Play</button>
-            </div>
-            <div class="gamemode-card">
-                <h3>Trial Run</h3>
-                <p id="trialRunDescription"></p>
-                <button id="trialRunBtn" class="modal-action-button">Play</button>
-            </div>
-            <div class="gamemode-card locked">
-                <h3>Invasion Defend</h3>
-                <p id="invasionDefendDescription"></p>
-                <button class="modal-action-button" disabled>Locked</button>
-            </div>
-        </div>
-    </div>
-  </div>
-
-  <!-- Abandon Run Confirmation Modal -->
-  <div id="abandonRunModal" class="modal hidden">
-    <div class="modal-content">
-        <span class="close-button">&times;</span>
-        <h2>Abandon Run?</h2>
-        <p>Are you sure you want to end the current run? Adventure Runs will not be saved.</p>
-        <div class="modal-button-group">
-            <button id="abandonRunConfirmBtn" class="modal-action-button danger">Abandon</button>
-            <button id="abandonRunCancelBtn" class="modal-action-button secondary">Continue Run</button>
-        </div>
-    </div>
-  </div>
-
-  <!-- Enchantment Modal -->
-  <div id="enchantmentModal" class="modal hidden">
-    <div class="modal-content">
-        <span class="close-button">&times;</span>
-        <h2>Ball Enchantment</h2>
-        <div class="enchant-ui">
-            <div class="enchant-ball-list">
-                <!-- Ball selection cards will be inserted here by JS -->
-            </div>
-            <div class="enchant-main-panel">
-                <!-- Main enchantment UI will be inserted here by JS -->
-            </div>
-        </div>
-    </div>
   </div>
 
   <script type="module" src="index.js"></script>
