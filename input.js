@@ -11,7 +11,74 @@ import * as event from './eventManager.js';
 import { updateContextPanel } from './ui/homeBaseContext.js';
 import { GAME_MODE_TEXT } from './text.js';
 
+function populateEditorPanel(gameController) {
+    const tools = [
+        { id: 'place', name: 'Place' }, { id: 'remove', name: 'Remove' },
+        { id: 'removeAll', name: 'Remove All' }, { id: 'undo', name: 'Undo' },
+        { id: 'select', name: 'Select' }, { id: 'deselect_all', name: 'Deselect All' },
+        { id: 'hp_plus_10', name: '+10 HP' }, { id: 'hp_plus_50', name: '+50 HP' },
+        { id: 'hp_plus_200', name: '+200 HP' }, { id: 'hp_minus_10', name: '-10 HP' },
+        { id: 'hp_minus_50', name: '-50 HP' }, { id: 'hp_minus_200', name: '-200 HP' },
+        { id: 'coin_plus_1', name: '+1 Coin' }, { id: 'coin_plus_5', name: '+5 Coin' },
+        { id: 'coin_plus_20', name: '+20 Coin' }, { id: 'coin_minus_1', name: '-1 Coin' },
+        { id: 'coin_minus_5', name: '-5 Coin' }, { id: 'coin_minus_20', name: '-20 Coin' },
+    ];
+    const bricks = [
+        'normal', 'goal', 'extraBall', 'explosive', 'horizontalStripe', 'verticalStripe', 
+        'ballCage', 'equipment', 'wool', 'shieldGen', 'long_h', 'long_v'
+    ];
+    const overlays = [
+        'builder', 'healer', 'mine', 'zapper', 'zap_battery'
+    ];
+
+    dom.editorToolsContainer.innerHTML = '';
+    tools.forEach(tool => {
+        const btn = document.createElement('button');
+        btn.className = 'editor-btn';
+        btn.dataset.tool = tool.id;
+        btn.textContent = tool.name;
+        btn.addEventListener('click', () => {
+            sounds.buttonClick();
+            gameController.setEditorState('tool', tool.id);
+        });
+        dom.editorToolsContainer.appendChild(btn);
+    });
+
+    dom.editorBricksContainer.innerHTML = '';
+    bricks.forEach(brick => {
+        const btn = document.createElement('button');
+        btn.className = 'editor-btn';
+        btn.dataset.object = brick;
+        
+        let name = brick.charAt(0).toUpperCase() + brick.slice(1);
+        if (brick === 'long_h') name = 'Long H';
+        if (brick === 'long_v') name = 'Long V';
+        btn.textContent = name;
+
+        btn.addEventListener('click', () => {
+            sounds.buttonClick();
+            gameController.setEditorState('object', brick);
+        });
+        dom.editorBricksContainer.appendChild(btn);
+    });
+    
+    dom.editorOverlaysContainer.innerHTML = '';
+    overlays.forEach(overlay => {
+        const btn = document.createElement('button');
+        btn.className = 'editor-btn';
+        btn.dataset.object = overlay;
+        btn.textContent = overlay.charAt(0).toUpperCase() + overlay.slice(1);
+        btn.addEventListener('click', () => {
+            sounds.buttonClick();
+            gameController.setEditorState('object', overlay);
+        });
+        dom.editorOverlaysContainer.appendChild(btn);
+    });
+}
+
+
 export function initializeInput(gameController, runCode) {
+<<<<<<< HEAD
     let adventureStartLevel = 1;
 
     event.subscribe('BrickSelected', (payload) => {
@@ -20,6 +87,9 @@ export function initializeInput(gameController, runCode) {
             updateContextPanel(payload.brick, gameController);
         }
     });
+=======
+    populateEditorPanel(gameController);
+>>>>>>> parent of 9f9d272 (feat: Initialize level editor and exporter/importer)
 
     dom.pauseResumeBtn.addEventListener('click', () => { 
         sounds.buttonClick(); 
@@ -525,6 +595,61 @@ export function initializeInput(gameController, runCode) {
             ui.updateBallSelectorArrow();
         });
     });
+    
+    // --- New Export/Import Listeners ---
+    dom.exportLevelBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        const levelData = gameController.exportLevelData();
+        dom.exportDataTextarea.value = levelData;
+        dom.exportLevelModal.classList.remove('hidden');
+        if(state.p5Instance) state.p5Instance.isModalOpen = true;
+    });
+
+    dom.closeExportBtn.addEventListener('click', () => {
+        sounds.popupClose();
+        dom.exportLevelModal.classList.add('hidden');
+        if(state.p5Instance) state.p5Instance.isModalOpen = false;
+    });
+
+    dom.copyExportBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        navigator.clipboard.writeText(dom.exportDataTextarea.value).then(() => {
+            dom.copyExportBtn.textContent = 'Copied!';
+            setTimeout(() => dom.copyExportBtn.textContent = 'Copy to Clipboard', 2000);
+        });
+    });
+
+    dom.importLevelBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        dom.importDataTextarea.value = '';
+        dom.importLevelModal.classList.remove('hidden');
+        if(state.p5Instance) state.p5Instance.isModalOpen = true;
+    });
+
+    dom.closeImportBtn.addEventListener('click', () => {
+        sounds.popupClose();
+        dom.importLevelModal.classList.add('hidden');
+        if(state.p5Instance) state.p5Instance.isModalOpen = false;
+    });
+
+    dom.importConfirmBtn.addEventListener('click', () => {
+        sounds.popupOpen();
+        const data = dom.importDataTextarea.value;
+        if (data.trim()) {
+            gameController.importLevelData(data);
+        }
+        dom.importLevelModal.classList.add('hidden');
+        dom.settingsModal.classList.add('hidden');
+        if(state.p5Instance) state.p5Instance.isModalOpen = false;
+    });
+
+    // --- Level Editor Listeners ---
+    dom.levelEditorBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        gameController.toggleLevelEditor();
+        dom.settingsModal.classList.add('hidden');
+    });
+
 
     // Handle Edit Base button
     dom.editBaseBtn.addEventListener('click', () => {
