@@ -154,6 +154,22 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                 if (b.isGhost && b.type === 'giant') continue;
                 if (b instanceof Ball && !b.isGhost) b.addHitToHistory();
 
+                // LogBrick special handling (execute without bouncing)
+                if (brick.type === 'LogBrick' && !b.isGhost && !b.brickHitCooldowns.has(brick)) {
+                    const hitResult = brick.hit(brick.health, b, board);
+                    if (hitResult) {
+                        if (b instanceof MiniBall) {
+                            event.dispatch('MiniBallHitBrick', { miniBall: b, brick, hitResult, combo });
+                        } else {
+                            event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
+                        }
+                        hitEvents.push({ type: 'brick_hit', ...hitResult });
+                    }
+                    b.brickHitCooldowns.set(brick, 3); // Prevent multiple hits in one frame
+                    continue; // Skip bouncing logic
+                }
+
+
                 const sourceBall = b;
                 let equipmentSourceType;
                 if (sourceBall instanceof MiniBall) {

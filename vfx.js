@@ -328,6 +328,44 @@ export class ZapperSparkle {
     }
 }
 
+export class FlyingIcon {
+    constructor(p, startPos, endPos, icon, options = {}) {
+        this.p = p;
+        this.startPos = startPos.copy(); // Store original start
+        this.pos = startPos.copy();
+        this.target = endPos.copy();
+        this.icon = icon;
+        this.size = options.size || 16;
+        this.lifespan = options.lifespan || 40; // frames for travel
+        this.age = 0;
+        this.onComplete = options.onComplete || (() => {});
+        this.completed = false;
+    }
+
+    update() {
+        this.age++;
+        const progress = this.p.min(1.0, this.age / this.lifespan);
+        const easedProgress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+
+        this.pos = this.p.constructor.Vector.lerp(this.startPos, this.target, easedProgress);
+
+        if (this.age >= this.lifespan && !this.completed) {
+            this.completed = true;
+            this.onComplete();
+        }
+    }
+
+    draw() {
+        this.p.textAlign(this.p.CENTER, this.p.CENTER);
+        this.p.textSize(this.size);
+        this.p.text(this.icon, this.pos.x, this.pos.y);
+    }
+
+    isFinished() {
+        return this.age >= this.lifespan;
+    }
+}
+
 
 export function createSplat(p, splatBuffer, x, y, brickColor, gridUnitSize) { 
     if (!splatBuffer) return; 

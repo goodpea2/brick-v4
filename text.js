@@ -23,6 +23,19 @@ export const UNLOCK_DESCRIPTIONS = {
     [UNLOCK_LEVELS.SPECIAL_BRICKS]: "New Challenge! Special bricks will now appear: WoolBricks (immune to explosions) and ShieldGenBricks (protect other bricks)."
 };
 
+export const GAME_MODE_TEXT = {
+    adventureRun: {
+        description: "Start a rogue-like run with coins and equipments.\nHighest level reached: {highestLevelReached}\nPrevious run record: {previousRunLevel}",
+        loot: "Available loot: 💎🥕🪵"
+    },
+    trialRun: {
+        description: "Test your skills using consumable balls from your Home Base. No shop, no equipment.\nHighest level reached: {trialRunHighestLevelReached}",
+    },
+    invasionDefend: {
+        description: "Defend your Home Base from waves of invaders. (Coming Soon!)",
+    }
+};
+
 export const EQUIPMENT_TEXT = {
     'direct_damage': {
         name: 'Power Shard',
@@ -116,4 +129,39 @@ export const EQUIPMENT_TEXT = {
         name: 'Overflow',
         description: 'Get an extra power-up use and some health, the first 5 hits heal bricks instead of damaging them.',
     },
+};
+
+export const HOME_BASE_TEXT = {
+    'normal': {
+        name: 'Normal Brick',
+        description: 'A basic building block.',
+    },
+    'Farmland': {
+        name: 'Farmland',
+        description: 'Generates food on nearby bricks. Excess food is stored internally.',
+    },
+    'Sawmill': {
+        name: 'Sawmill',
+        description: 'Grows Logs on adjacent empty tiles. Excess wood is stored internally.',
+    },
+    'FoodStorage': {
+        name: 'Food Storage',
+        description: 'Increases your maximum food capacity.',
+    },
+    'WoodStorage': {
+        name: 'Wood Storage',
+        description: 'Increases your maximum wood capacity.',
+    },
+    'LogBrick': {
+        name: 'Log Brick',
+        description: 'A resource brick worth 10 Wood. Grown by Sawmills and harvested by clicking.',
+    },
+    'BallProducer': {
+        name: 'Ball Producer',
+        description: 'Produces a variety of consumable balls for a future game mode. Requires food and time.',
+    },
+    'EmptyCage': {
+        name: 'Ball Cage',
+        description: 'Stores up to 3 consumable balls produced by a Ball Producer.',
+    }
 };

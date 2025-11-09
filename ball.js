@@ -1,4 +1,5 @@
-// ball.js
+// ball.js 
+// enchantment symbols for a future feature 🌿🫘🧆🍬🍭
 import { state } from './state.js';
 import { BALL_STATS } from './balancing.js';
 import * as event from './eventManager.js';
@@ -285,7 +286,10 @@ export class Ball {
         this.vel = p.createVector(0, 0); 
         this.isMoving = false; 
         
-        this.maxHp = (BALL_STATS.types[type]?.hp ?? 100) + (stats.extraBallHp ?? 0);
+        this.maxHp = (BALL_STATS.types[type]?.hp ?? 100);
+        if (type !== 'giant') {
+            this.maxHp += (stats.extraBallHp ?? 0);
+        }
         this.hp = this.maxHp; 
         this.flashTime = 0; 
         this.type = type; 

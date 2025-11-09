@@ -1,11 +1,12 @@
 // state.js
-import { SHOP_PARAMS, INITIAL_UPGRADE_STATE, XP_SETTINGS } from './balancing.js';
+import { SHOP_PARAMS, INITIAL_UPGRADE_STATE, XP_SETTINGS, TRIAL_RUN_LEVEL_SETTINGS } from './balancing.js';
 
 // This file holds the canonical state for the application.
 // Other modules can import and modify the properties of this single state object.
 
 export const state = {
     p5Instance: null,
+    gameMode: 'homeBase', // 'homeBase' | 'adventureRun' | 'trialRun'
     isRunning: true,
     isSpedUp: false,
     originalBallSpeed: 0.4,
@@ -29,17 +30,46 @@ export const state = {
     playerGems: 0,
     lifetimeGems: 0,
     lifetimeXp: 0,
+    playerFood: 1000,
+    playerWood: 1000,
+    playerEnchanters: {
+        enchanter1: 0,
+        enchanter2: 0,
+        enchanter3: 0,
+        enchanter4: 0,
+        enchanter5: 0,
+    },
+    maxFood: 1000,
+    maxWood: 1000,
     skillTreeState: {}, // Flat object mapping skill ID to true if purchased
+    ballEnchantments: {
+        classic: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        explosive: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        piercing: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        split: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        brick: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        bullet: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        homing: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+    },
     equipmentBrickSpawnChance: 0.1, // This will be initialized from settings
     milestonesCompleted: {},
+    highestLevelReached: 0,
+    trialRunHighestLevelReached: 0,
+    previousRunLevel: 0,
+    homeBaseInventory: [],
+    isInitialHomeBaseLayoutLoaded: false,
     
     // In-run State
+    nextRoomType: 'normal', // 'normal' | 'gem' | 'food' | 'wood' | 'lucky' | 'danger'
     isGoldenTurn: false,
+    trialRunBallStock: {}, // e.g. { classic: 10, explosive: 5 }
+    trialRunLevelSettings: { ...TRIAL_RUN_LEVEL_SETTINGS },
     
     // Editor State
     isEditorMode: false,
     editorTool: 'place',
     editorObject: 'normal',
+    editorSelectedItem: null,
     editorSelection: new Set(),
     isDeselectingInEditor: false,
 
@@ -101,7 +131,9 @@ export function applyAllUpgrades() {
     
     // Skill Tree Upgrades
     let explosiveDamageBonus = 0;
-    if (state.skillTreeState['explosive_damage_1']) explosiveDamageBonus += 10;
-    if (state.skillTreeState['explosive_damage_2']) explosiveDamageBonus += 10;
+    if (state.gameMode === 'adventureRun') {
+        if (state.skillTreeState['explosive_damage_1']) explosiveDamageBonus += 10;
+        if (state.skillTreeState['explosive_damage_2']) explosiveDamageBonus += 10;
+    }
     state.upgradeableStats.explosiveBrickDamage = 30 + explosiveDamageBonus;
 }

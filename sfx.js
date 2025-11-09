@@ -170,6 +170,10 @@ export const sounds = {
     },
     zap: () => playSound({ freq: 1200, duration: 0.1, type: 'sawtooth', volume: 0.2, decay: 0.08, freqEnd: 800 }),
     
+    // --- New Resource Sounds ---
+    foodCollect: () => playSound({ freq: 600, duration: 0.1, type: 'triangle', volume: 0.3, decay: 0.08, freqEnd: 1200 }),
+    woodCollect: () => playSound({ freq: 150, duration: 0.15, type: 'square', volume: 0.4, decay: 0.12, freqEnd: 100 }),
+
     // --- New UI Sounds ---
     buttonClick: () => playSound({ freq: 200, duration: 0.1, type: 'triangle', volume: 0.3, decay: 0.08 }),
     popupOpen: () => playSound({ freq: 400, duration: 0.2, type: 'triangle', volume: 0.2, decay: 0.2, freqEnd: 700 }),

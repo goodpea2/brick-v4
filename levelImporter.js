@@ -45,9 +45,18 @@ export function importLevelFromString(dataString, p, board) {
             const props = bStr.split(',');
             if (props.length < 12) continue;
             
-            const [c, r, type, health, maxHealth, coins, maxCoins, gems, maxGems, overlay, widthInCells, heightInCells] = props;
+            const [
+                c, r, type, health, maxHealth, coins, maxCoins, gems, maxGems, 
+                overlay, widthInCells, heightInCells, levelStr
+            ] = props;
+            
+            const level = levelStr ? parseInt(levelStr, 10) : 1;
 
-            const newBrick = new Brick(p, parseInt(c, 10), parseInt(r, 10), type, parseFloat(health), board.gridUnitSize);
+            const newBrick = new Brick(p, parseInt(c, 10), parseInt(r, 10), type, parseFloat(health), board.gridUnitSize, level);
+            
+            // Manually override stats from the save file because this is an import.
+            // The constructor sets the base stats for the level, this applies the saved *current* state.
+            newBrick.health = parseFloat(health);
             newBrick.maxHealth = parseFloat(maxHealth);
             newBrick.coins = parseInt(coins, 10);
             newBrick.maxCoins = parseInt(maxCoins, 10);

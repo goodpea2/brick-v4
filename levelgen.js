@@ -90,6 +90,65 @@ function processBrickMerging(p, brickMatrix, hpPool, board) {
 
 
 export function generateLevel(p, settings, level, board) {
+    // --- Room Logic Application ---
+    const roomType = state.nextRoomType;
+    let gemBonus = 0;
+    let forceEquipmentBrick = false;
+    let dangerRoomZapperChance = null;
+    let dangerRoomBatteryChance = null;
+    let foodPoolOverride = null;
+    let woodLogSpawnCount = 0;
+
+    if (state.gameMode === 'adventureRun' && roomType !== 'normal') {
+        switch (roomType) {
+            case 'gem':
+                settings.extraBallBricks = 0;
+                gemBonus = 5;
+                break;
+            case 'food':
+                let coinPoolForFood = p.min(settings.maxCoin, settings.startingCoin + (level - 1) * settings.coinIncrement);
+                if (level > 1 && level % settings.bonusLevelInterval === 0) { 
+                    coinPoolForFood = Math.floor(coinPoolForFood * p.random(settings.minCoinBonusMultiplier, settings.maxCoinBonusMultiplier)); 
+                }
+                foodPoolOverride = coinPoolForFood * 2;
+                settings.startingCoin = 0;
+                settings.coinIncrement = 0;
+                break;
+            case 'wood':
+                let coinPoolForWood = p.min(settings.maxCoin, settings.startingCoin + (level - 1) * settings.coinIncrement);
+                if (level > 1 && level % settings.bonusLevelInterval === 0) { 
+                    coinPoolForWood = Math.floor(coinPoolForWood * p.random(settings.minCoinBonusMultiplier, settings.maxCoinBonusMultiplier)); 
+                }
+                woodLogSpawnCount = Math.floor(coinPoolForWood / 4);
+                settings.startingCoin = 0;
+                settings.coinIncrement = 0;
+                break;
+            case 'lucky':
+                const luckyRoll = p.random();
+                if (luckyRoll < 0.33) {
+                    forceEquipmentBrick = true;
+                } else if (luckyRoll < 0.66) {
+                    settings.explosiveBrickChance *= 3;
+                } else {
+                    settings.extraBallBricks += 2;
+                }
+                break;
+            case 'danger':
+                const dangerRoll = p.random();
+                if (dangerRoll < 0.5) {
+                    settings.startingBrickHp *= 2;
+                    settings.brickHpIncrement *= 2;
+                    gemBonus = 3;
+                } else {
+                    dangerRoomZapperChance = 1.0;
+                    dangerRoomBatteryChance = 0.3;
+                    gemBonus = 5;
+                }
+                break;
+        }
+        state.nextRoomType = 'normal';
+    }
+
     // --- Step 1: Initialization ---
     const { cols, rows, gridUnitSize } = board;
     let brickMatrix = Array(cols).fill(null).map(() => Array(rows).fill(null));
@@ -132,8 +191,10 @@ export function generateLevel(p, settings, level, board) {
     
     // --- Step 3: Place Equipment Brick (if unlocked and chance succeeds) ---
     let equipmentBrickSpawned = false;
-    if (state.mainLevel >= UNLOCK_LEVELS.EQUIPMENT && p.random() < state.equipmentBrickSpawnChance) {
-        state.equipmentBrickSpawnChance = settings.equipmentBrickInitialChance; // Reset
+    const shouldSpawnEquipment = (state.mainLevel >= UNLOCK_LEVELS.EQUIPMENT && p.random() < state.equipmentBrickSpawnChance) || forceEquipmentBrick;
+    if (shouldSpawnEquipment) {
+        if (!forceEquipmentBrick) state.equipmentBrickSpawnChance = settings.equipmentBrickInitialChance; // Reset chance if it was random
+        
         const possibleCenterCoords = [];
         for (let r = 1; r < rows - 1; r++) {
             for (let c = 1; c < cols - 1; c++) {
@@ -312,7 +373,7 @@ export function generateLevel(p, settings, level, board) {
     }
     
     // --- 6b: Zapper System Spawn ---
-    const zapperSpawnChance = Math.min(0.65, level * 0.03);
+    const zapperSpawnChance = dangerRoomZapperChance ?? Math.min(0.65, level * 0.03);
     if (p.random() < zapperSpawnChance) {
         const potentialHosts = [];
         for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
@@ -325,24 +386,23 @@ export function generateLevel(p, settings, level, board) {
         for (const zapperHost of potentialHosts) {
             if (zapperPlaced) break;
             const zapperCost = BRICK_STATS.zapper.baseCost + zapperHost.health * (BRICK_STATS.zapper.costPer10Hp / 10);
-            const zapperHostPos = zapperHost.getPixelPos(board);
-            const initialRadiusSq = p.pow(board.gridUnitSize * 1.5, 2);
+            const batteryChance = dangerRoomBatteryChance ?? 0.05;
 
-            for (const batteryHost of potentialHosts) {
-                if (batteryHost === zapperHost) continue;
-                const batteryHostPos = batteryHost.getPixelPos(board);
-                const distSq = p.pow(zapperHostPos.x - batteryHostPos.x, 2) + p.pow(zapperHostPos.y - batteryHostPos.y, 2);
-                if (distSq > initialRadiusSq) {
-                    const batteryCost = batteryHost.health * (BRICK_STATS.zap_battery.costPer10Hp / 10);
-                    const totalCost = zapperCost + batteryCost;
-                    if (hpToDistribute >= totalCost) {
-                        hpToDistribute -= totalCost;
-                        zapperHost.overlay = 'zapper';
-                        batteryHost.overlay = 'zap_battery';
-                        zapperPlaced = true;
-                        break; 
-                    }
-                }
+            const potentialBatteryHosts = potentialHosts.filter(h => h !== zapperHost);
+            p.shuffle(potentialBatteryHosts, true);
+
+            for (const batteryHost of potentialBatteryHosts) {
+                 if (p.random() > batteryChance) continue;
+
+                 const batteryCost = batteryHost.health * (BRICK_STATS.zap_battery.costPer10Hp / 10);
+                 const totalCost = zapperCost + batteryCost;
+                 if (hpToDistribute >= totalCost) {
+                     hpToDistribute -= totalCost;
+                     zapperHost.overlay = 'zapper';
+                     batteryHost.overlay = 'zap_battery';
+                     zapperPlaced = true;
+                     break;
+                 }
             }
         }
     }
@@ -521,7 +581,17 @@ export function generateLevel(p, settings, level, board) {
     }
 
 
-    // --- Step 8: Spawn Special Cages (Optional) ---
+    // --- Step 8: Spawn Special Cages & Wood Log Bricks ---
+    if (woodLogSpawnCount > 0) {
+        let emptyCoords = [];
+        for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) if (!brickMatrix[c][r]) emptyCoords.push({ c, r });
+        p.shuffle(emptyCoords, true);
+        for (let i = 0; i < Math.min(woodLogSpawnCount, emptyCoords.length); i++) {
+            const spot = emptyCoords[i];
+            const newBrick = new Brick(p, spot.c - 6, spot.r - 6, 'LogBrick', 10, gridUnitSize);
+            brickMatrix[spot.c][spot.r] = newBrick;
+        }
+    }
     if (settings.ballCageBrickChance > 0) {
         const bricksToCheck = [];
         for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) if (brickMatrix[c][r]) bricksToCheck.push(brickMatrix[c][r]);
@@ -543,35 +613,72 @@ export function generateLevel(p, settings, level, board) {
             if (p.random() < 0.01) gemPool++;
         }
         if ((level - 1) % 5 === 0 && level > 1) {
-            gemPool = Math.max(gemPool, 5);
+            gemPool += 0; // no longer guarantees Gems on level 6,11,16,, etc.
         }
     }
-    const coinEligibleBricks = [];
-    const uniqueBricks = new Set();
-    for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
-            const brick = brickMatrix[c][r];
-            if (brick && BRICK_STATS.canCarryCoin[brick.type] && !uniqueBricks.has(brick)) {
-                coinEligibleBricks.push(brick);
-                uniqueBricks.add(brick);
+    gemPool += gemBonus;
+
+    if (foodPoolOverride !== null) {
+        const foodEligibleBricks = [];
+        const uniqueBricks = new Set();
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < rows; r++) {
+                const brick = brickMatrix[c][r];
+                if (brick && BRICK_STATS.canCarryFood[brick.type] && !uniqueBricks.has(brick)) {
+                    foodEligibleBricks.push(brick);
+                    uniqueBricks.add(brick);
+                }
+            }
+        }
+        if (foodEligibleBricks.length > 0) {
+            let foodToDistribute = foodPoolOverride;
+            while(foodToDistribute > 0) {
+                const brickForFood = p.random(foodEligibleBricks);
+                if (brickForFood.food < brickForFood.maxFood) {
+                    brickForFood.food++;
+                    foodToDistribute--;
+                }
+                if (foodEligibleBricks.every(b => b.food >= b.maxFood)) break;
+            }
+        }
+    } else {
+        const coinEligibleBricks = [];
+        const uniqueBricks = new Set();
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < rows; r++) {
+                const brick = brickMatrix[c][r];
+                if (brick && BRICK_STATS.canCarryCoin[brick.type] && !uniqueBricks.has(brick)) {
+                    coinEligibleBricks.push(brick);
+                    uniqueBricks.add(brick);
+                }
+            }
+        }
+        if (coinEligibleBricks.length > 0) {
+            let coinsToDistribute = currentCoinPool;
+            while (coinsToDistribute > 0) {
+                const brickForCoins = coinEligibleBricks[p.floor(p.random(coinEligibleBricks.length))];
+                const coinsToAdd = p.min(coinsToDistribute, p.floor(p.random(2, 5)) * (brickForCoins.health / 10));
+                brickForCoins.coins += coinsToAdd;
+                brickForCoins.maxCoins += coinsToAdd;
+                coinsToDistribute -= coinsToAdd;
+                if (coinsToDistribute <= 0) break;
+                if (coinEligibleBricks.every(b => b.coins > 1000)) break;
             }
         }
     }
-    if (coinEligibleBricks.length > 0) {
-        let coinsToDistribute = currentCoinPool;
-        while (coinsToDistribute > 0) {
-            const brickForCoins = coinEligibleBricks[p.floor(p.random(coinEligibleBricks.length))];
-            const coinsToAdd = p.min(coinsToDistribute, p.floor(p.random(2, 5)) * (brickForCoins.health / 10));
-            brickForCoins.coins += coinsToAdd;
-            brickForCoins.maxCoins += coinsToAdd;
-            coinsToDistribute -= coinsToAdd;
-            if (coinsToDistribute <= 0) break;
-            if (coinEligibleBricks.every(b => b.coins > 1000)) break;
+    
+    const gemEligibleBricks = [];
+    const uniqueGemBricks = new Set();
+    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+        const brick = brickMatrix[c][r];
+        if (brick && BRICK_STATS.canCarryGem[brick.type] && !uniqueGemBricks.has(brick)) {
+            gemEligibleBricks.push(brick);
+            uniqueGemBricks.add(brick);
         }
     }
-    if (coinEligibleBricks.length > 0 && gemPool > 0) {
+    if (gemEligibleBricks.length > 0 && gemPool > 0) {
         for (let i = 0; i < gemPool; i++) {
-            const brickForGems = coinEligibleBricks[p.floor(p.random(coinEligibleBricks.length))];
+            const brickForGems = gemEligibleBricks[p.floor(p.random(gemEligibleBricks.length))];
             brickForGems.gems++;
             brickForGems.maxGems++;
         }
@@ -611,6 +718,10 @@ export function generateLevel(p, settings, level, board) {
                 if (b.maxGems > 0) {
                     b.gemIndicatorPositions = [];
                     for (let i = 0; i < p.min(b.maxGems, 20); i++) b.gemIndicatorPositions.push(p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
+                }
+                 if (b.food > 0) {
+                    b.foodIndicatorPositions = [];
+                    for (let i = 0; i < p.min(b.maxFood, 20); i++) b.foodIndicatorPositions.push(p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
                 }
             }
         }

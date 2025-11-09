@@ -613,6 +613,158 @@ main {
     background-color: var(--color-bg3);
 }
 
+/* Enchantment UI */
+#enchantmentModal .modal-content {
+    max-width: 900px;
+    height: 80vh;
+    max-height: 600px;
+}
+.enchant-ui {
+    display: flex;
+    height: 100%;
+    gap: 20px;
+}
+.enchant-ball-list {
+    flex-basis: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-color: var(--color-bg);
+    padding: 10px;
+    border-radius: 5px;
+}
+.enchant-ball-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid var(--color-sidebar-border);
+    transition: background-color 0.2s;
+}
+.enchant-ball-card:hover {
+    background-color: var(--color-bg3);
+}
+.enchant-ball-card.active {
+    background-color: var(--color-accent);
+    color: var(--color-accent-text);
+    border-color: var(--color-accent);
+}
+.enchant-ball-card .ball-visual {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+}
+.enchant-main-panel {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    text-align: left;
+    position: relative;
+}
+.enchant-stats-display ul {
+    list-style: none;
+    padding-left: 10px;
+}
+.enchant-stats-display li {
+    margin-bottom: 5px;
+}
+.enchant-ingredient-slots {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 15px;
+}
+.enchant-slot {
+    width: 60px;
+    height: 60px;
+    border: 2px dashed var(--color-accent-disabled);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.enchant-slot:hover {
+    border-color: #00e5ff;
+}
+.enchant-inventory {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+    background-color: var(--color-bg);
+    border-radius: 5px;
+    min-height: 80px;
+    justify-content: center;
+    align-content: flex-start;
+}
+.enchant-item-card {
+    width: 50px;
+    height: 50px;
+    border: 1px solid var(--color-sidebar-border);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8em;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.2s;
+}
+.enchant-item-card:hover {
+    transform: scale(1.1);
+}
+.enchant-item-card .item-count {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 0.5em;
+    background-color: rgba(0,0,0,0.7);
+    padding: 1px 4px;
+    border-radius: 4px;
+}
+.enchant-controls {
+    text-align: center;
+    margin-top: auto;
+}
+.enchant-controls div {
+    margin-bottom: 10px;
+}
+.enchant-result-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+.enchant-result-text {
+    font-size: 3em;
+    font-weight: bold;
+    text-shadow: 0 0 10px #fff;
+}
+.enchant-result-text.success {
+    color: #98FB98;
+}
+.enchant-result-text.failure {
+    color: #ff4136;
+}
+.enchant-result-bonus {
+    font-size: 1.2em;
+    margin-top: 10px;
+}
+
 
 /* Landscape mode for ball selector */
 @media (orientation: landscape) {
