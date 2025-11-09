@@ -1276,6 +1276,27 @@
         background-color: #00373d;
     }
 
+    /* Portrait mode for editor panel */
+    @media (orientation: portrait) {
+        #editor-panel {
+            flex-direction: row;
+            height: auto;
+            width: 100vw;
+            max-height: 25vh;
+            left: 50%;
+            top: auto;
+            bottom: 20px;
+            transform: translateX(-50%);
+            overflow-x: auto;
+            overflow-y: auto;
+            gap: 20px;
+            padding: 15px;
+        }
+
+        #editor-panel .editor-section {
+            flex-shrink: 0;
+        }
+    }
 
     /* Landscape mode for ball selector */
     @media (orientation: landscape) {

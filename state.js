@@ -31,6 +31,7 @@ export const state = {
     lifetimeXp: 0,
     skillTreeState: {}, // Flat object mapping skill ID to true if purchased
     equipmentBrickSpawnChance: 0.1, // This will be initialized from settings
+    milestonesCompleted: {},
     
     // In-run State
     isGoldenTurn: false,

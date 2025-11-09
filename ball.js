@@ -200,7 +200,7 @@ export class MiniBall {
         this.p = p;
         this.pos = p.createVector(x,y); 
         this.vel = vel; 
-        this.radius = gridUnitSize * 0.2; // 4 / 20
+        this.radius = gridUnitSize * BALL_STATS.types.miniball.radiusMultiplier;
         this.brickHitCooldowns = new Map();
         this.isDead = false;
         this.mainBallIsDead = false;
@@ -302,7 +302,7 @@ export class Ball {
         this.overflowApplied = false;
         this.hitHistory = [];
         
-        this.radius = gridUnitSize * 0.32; // 6.4 / 20
+        this.radius = gridUnitSize * (BALL_STATS.types[type]?.radiusMultiplier ?? 0.32);
 
         this.powerUpUses = this.powerUpMaxUses = BALL_STATS.types[type]?.powerUpUses ?? 0;
         this.isPiercing = false; 
@@ -319,7 +319,6 @@ export class Ball {
         }
         
         if(type === 'giant') {
-            this.radius = gridUnitSize * 0.8; 
             this.damageDealtForHpLoss = 0;
         }
     } 
@@ -672,14 +671,14 @@ export class Ball {
         // Zap Aura Drawing
         const zapAura = equipment.find(item => item.id === 'zap_aura');
         if (zapAura && this.isMoving && board) {
-            const auraRadius = board.gridUnitSize * 2;
+            const auraRadius = board.gridUnitSize * zapAura.config.auraRadiusTiles;
             const auraColor = buffer.color(100, 200, 255);
             const alpha = buffer.map(buffer.sin(buffer.frameCount * 0.2), -1, 1, 50, 150);
             auraColor.setAlpha(alpha);
             buffer.noFill();
             buffer.stroke(auraColor);
             buffer.strokeWeight(3);
-            buffer.ellipse(b.pos.x, b.pos.y, auraRadius * 2);
+            buffer.ellipse(this.pos.x, this.pos.y, auraRadius * 2);
             
             if (buffer.frameCount % 3 === 0) {
                 for (let i = 0; i < 3; i++) {

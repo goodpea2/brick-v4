@@ -8,6 +8,7 @@ export const BALL_STATS = {
             brickHitDamage: 0,
             baseDamage: 10,
             powerUpUses: 0,
+            radiusMultiplier: 0.28,
         },
         explosive: {
             hp: 100,
@@ -17,6 +18,7 @@ export const BALL_STATS = {
             powerUpUses: 2,
             radiusTiles: 2.5,
             damage: 30,
+            radiusMultiplier: 0.28,
         },
         piercing: {
             hp: 100,
@@ -25,6 +27,7 @@ export const BALL_STATS = {
             baseDamage: 10,
             powerUpUses: 2,
             contactCount: 5,
+            radiusMultiplier: 0.28,
         },
         split: {
             hp: 100,
@@ -33,6 +36,7 @@ export const BALL_STATS = {
             baseDamage: 10,
             powerUpUses: 1,
             miniBallCount: 2,
+            radiusMultiplier: 0.28,
         },
         brick: {
             hp: 100,
@@ -42,6 +46,7 @@ export const BALL_STATS = {
             powerUpUses: 1,
             spawnRadiusTiles: 3,
             coinChancePercent: 20,
+            radiusMultiplier: 0.28,
         },
         bullet: {
             hp: 100,
@@ -51,6 +56,7 @@ export const BALL_STATS = {
             powerUpUses: 3,
             speedMultiplier: 0.6,
             damage: 10,
+            radiusMultiplier: 0.28,
         },
         homing: {
             hp: 100,
@@ -61,6 +67,7 @@ export const BALL_STATS = {
             turnRate: 0.2,
             damage: 20,
             explosionRadiusTiles: 1.5,
+            radiusMultiplier: 0.28,
         },
         giant: {
             hp: 20,
@@ -68,11 +75,13 @@ export const BALL_STATS = {
             brickHitDamage: 1, // Loses 1 HP per 100 damage dealt
             baseDamage: 1000,
             powerUpUses: 0,
+            radiusMultiplier: 0.8,
         },
         miniball: {
             wallHitDamage: 2,
             brickHitDamage: 0,
             baseDamage: 6,
+            radiusMultiplier: 0.2,
         }
     }
 };

@@ -6,18 +6,9 @@ import { state, applyAllUpgrades } from './state.js';
 import { sounds } from './sfx.js';
 import * as dom from './dom.js';
 import { initializeEquipmentManager } from './equipmentManager.js';
-<<<<<<< HEAD
 import { initialize as initializeLevelEditor } from './levelEditor.js';
 import { initialize as initializeLevelExporter } from './levelExporter.js';
 import { initialize as initializeLevelImporter } from './levelImporter.js';
-<<<<<<< HEAD
-import { initialize as initializeBrickLeveling } from './brickLeveling.js';
-import { initialize as initializeHomeBaseContext, setBallVisuals as setHomeBaseBallVisuals } from './ui/homeBaseContext.js';
-import { initialize as initializeEnchantment } from './ui/enchantment.js';
-=======
->>>>>>> parent of 9f9d272 (feat: Initialize level editor and exporter/importer)
-=======
->>>>>>> parent of 3be789e (feat: Upgrade application to v5 and introduce new UI features)
 
 let p5Instance;
 
@@ -54,18 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerGoldenShot: () => p5Instance?.triggerGoldenShot(),
         addFloatingText: (text, color, options, position) => p5Instance?.addFloatingText(text, color, options, position),
         exportLevelData: () => p5Instance?.exportLevelData(),
-<<<<<<< HEAD
         importLevelData: (data, editorUndo) => p5Instance?.importLevelData(data, editorUndo),
-<<<<<<< HEAD
-        toggleEditor: () => p5Instance?.toggleEditor(),
-=======
-        importLevelData: (data) => p5Instance?.importLevelData(data),
         toggleLevelEditor: () => p5Instance?.toggleLevelEditor(),
->>>>>>> parent of 9f9d272 (feat: Initialize level editor and exporter/importer)
-=======
-        toggleLevelEditor: () => p5Instance?.toggleLevelEditor(),
->>>>>>> parent of 3be789e (feat: Upgrade application to v5 and introduce new UI features)
         setEditorState: (type, value) => p5Instance?.setEditorState(type, value),
+        clearBricks: () => p5Instance?.clearBricks(),
 
         // New methods for equipmentManager
         healBall: (amount) => p5Instance?.healBall(amount),
@@ -80,17 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initializeInput(gameController, runCode);
     initializeEquipmentManager(gameController);
-<<<<<<< HEAD
     initializeLevelEditor(gameController);
     initializeLevelExporter(gameController);
     initializeLevelImporter(gameController);
-<<<<<<< HEAD
-    initializeBrickLeveling(gameController);
-    initializeHomeBaseContext(gameController);
-=======
->>>>>>> parent of 9f9d272 (feat: Initialize level editor and exporter/importer)
-=======
->>>>>>> parent of 3be789e (feat: Upgrade application to v5 and introduce new UI features)
     
     // Initialize sound volume from the UI slider's default value
     sounds.setMasterVolume(parseFloat(dom.volumeSlider.value));
