@@ -2,13 +2,25 @@
 
 import * as dom from './dom.js';
 import { state, applyAllUpgrades } from './state.js';
-import * as ui from './ui.js';
+import * as ui from './ui/index.js';
 import { sounds } from './sfx.js';
 import { XP_SETTINGS } from './balancing.js';
 import { ALL_EQUIPMENT_IDS, createEquipment, RARITIES } from './equipment.js';
 import { SKILL_TREE_DATA } from './skillTreeData.js';
+import * as event from './eventManager.js';
+import { updateContextPanel } from './ui/homeBaseContext.js';
+import { GAME_MODE_TEXT } from './text.js';
 
 export function initializeInput(gameController, runCode) {
+    let adventureStartLevel = 1;
+
+    event.subscribe('BrickSelected', (payload) => {
+        ui.updateBrickInfoPanel(payload.brick, gameController);
+        if (state.gameMode === 'homeBase') {
+            updateContextPanel(payload.brick, gameController);
+        }
+    });
+
     dom.pauseResumeBtn.addEventListener('click', () => { 
         sounds.buttonClick(); 
         if (!state.p5Instance) return; 
@@ -38,10 +50,7 @@ export function initializeInput(gameController, runCode) {
     
     dom.debugViewBtn.addEventListener('click', () => {
         sounds.buttonClick();
-        state.isDebugView = !state.isDebugView;
-        dom.debugStatsContainer.classList.toggle('hidden', !state.isDebugView);
-        dom.cheatButtonsContainer.classList.toggle('hidden', !state.isDebugView);
-        dom.debugViewBtn.textContent = state.isDebugView ? 'Debug Off' : 'Debug View';
+        gameController.toggleDebugView();
     });
 
     dom.toggleEventLog.addEventListener('change', (e) => {
@@ -52,21 +61,95 @@ export function initializeInput(gameController, runCode) {
         state.showEquipmentDebug = e.target.checked;
     });
 
-    dom.prevLevelBtn.addEventListener('click', () => { sounds.buttonClick(); gameController.prevLevel(); });
-    dom.nextLevelBtn.addEventListener('click', () => { sounds.buttonClick(); gameController.nextLevel(); });
-
-    dom.clearBtn.addEventListener('click', () => { 
+    dom.prevLevelBtn.addEventListener('click', async () => { 
         sounds.buttonClick(); 
+        await gameController.prevLevel(); 
+    });
+    dom.nextLevelBtn.addEventListener('click', async () => { 
+        sounds.buttonClick(); 
+        await gameController.nextLevel(); 
+    });
+
+    dom.clearBtn.addEventListener('click', async () => { 
+        sounds.buttonClick();
+        if (state.gameMode === 'trialRun') {
+            gameController.refundTrialRunBalls();
+            gameController.forceGameOver();
+            return;
+        }
         const settings = ui.getLevelSettings(); 
-        gameController.resetGame(settings); 
+        await gameController.resetGame(settings); 
         state.isSpedUp = false; 
         dom.speedToggleBtn.textContent = 'Speed Up'; 
         dom.speedToggleBtn.classList.remove('speed-active'); 
     });
 
+    dom.modeToggleBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
+            dom.abandonRunModal.classList.remove('hidden');
+            if (state.p5Instance) state.p5Instance.isModalOpen = true;
+        } else { // homeBase
+            // Adventure Run
+            adventureStartLevel = Math.max(1, Math.floor((state.previousRunLevel - 10) / 2));
+            const adventureDescriptionText = GAME_MODE_TEXT.adventureRun.description
+                .replace('{highestLevelReached}', state.highestLevelReached)
+                .replace('{previousRunLevel}', state.previousRunLevel)
+                .replace(/\n/g, '<br>');
+
+            dom.adventureRunDescriptionEl.innerHTML = adventureDescriptionText + `<br><br><small style="opacity: 0.8;">${GAME_MODE_TEXT.adventureRun.loot}</small>`;
+            dom.adventureRunBtn.textContent = `Start level ${adventureStartLevel}`;
+    
+            // Trial Run
+            const trialDescriptionText = GAME_MODE_TEXT.trialRun.description
+                .replace('{trialRunHighestLevelReached}', state.trialRunHighestLevelReached)
+                .replace(/\n/g, '<br>');
+            dom.trialRunDescriptionEl.innerHTML = trialDescriptionText;
+
+            const homeBaseBricks = gameController.getHomeBaseBricks();
+            const board = gameController.getBoard();
+            let totalBalls = 0;
+            const processed = new Set();
+            if(homeBaseBricks && board) {
+                for (let c = 0; c < board.cols; c++) {
+                    for (let r = 0; r < board.rows; r++) {
+                        const brick = homeBaseBricks[c][r];
+                        if (brick && brick.type === 'EmptyCage' && !processed.has(brick)) {
+                            processed.add(brick);
+                            totalBalls += brick.inventory.length;
+                        }
+                    }
+                }
+            }
+            
+            dom.trialRunBtn.textContent = `Play - use all ${totalBalls} balls`;
+            dom.trialRunBtn.disabled = totalBalls < 3;
+            if (totalBalls < 3) {
+                dom.trialRunBtn.title = 'You need at least 3 balls in your Cages to start a Trial Run.';
+            } else {
+                dom.trialRunBtn.title = '';
+            }
+
+            // Invasion
+            dom.invasionDefendDescriptionEl.textContent = GAME_MODE_TEXT.invasionDefend.description;
+    
+            dom.gameModeModal.classList.remove('hidden');
+            if (state.p5Instance) state.p5Instance.isModalOpen = true;
+        }
+    });
+
     dom.levelSettingsButton.addEventListener('click', () => { 
         sounds.popupOpen(); 
         if (state.p5Instance) state.p5Instance.isModalOpen = true; 
+        
+        if (state.gameMode === 'trialRun') {
+            ui.populateSettingsModal(state.trialRunLevelSettings);
+            dom.generateLevelBtn.textContent = 'Apply Settings';
+        } else {
+            ui.populateSettingsModal(ui.getLevelSettings()); // Adventure mode settings are whatever is in the DOM
+            dom.generateLevelBtn.textContent = 'Generate New Level';
+        }
+
         dom.settingsModal.classList.remove('hidden'); 
     });
     
@@ -75,6 +158,16 @@ export function initializeInput(gameController, runCode) {
         if (state.p5Instance) state.p5Instance.isModalOpen = false; 
         dom.settingsModal.classList.add('hidden'); 
     });
+
+    // New run panel buttons
+    dom.runShopBtn.addEventListener('click', () => {
+        dom.coinBankEl.click();
+    });
+
+    dom.runEquipmentBtn.addEventListener('click', () => {
+        dom.openEquipmentBtn.click();
+    });
+
 
     dom.coinBankEl.addEventListener('click', () => { 
         sounds.popupOpen(); 
@@ -116,16 +209,14 @@ export function initializeInput(gameController, runCode) {
             }
         }
     });
-    
-    dom.resultContinueButton.addEventListener('click', () => {
+
+    dom.gameOverContinueButton.addEventListener('click', () => {
         sounds.buttonClick();
-        dom.resultScreen.classList.add('hidden');
+        dom.gameOverModal.classList.add('hidden');
     
         const gameState = gameController.getGameState();
-        if (gameState === 'levelComplete') {
-            gameController.nextLevel();
-        } else if (gameState === 'gameOver') {
-            gameController.resetGame(ui.getLevelSettings());
+        if (gameState === 'gameOver') {
+            gameController.enterHomeBase();
         }
     
         if (state.p5Instance) {
@@ -175,6 +266,8 @@ export function initializeInput(gameController, runCode) {
     });
 
     window.addEventListener('click', (e) => {
+        if (e.target === dom.gameModeModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.gameModeModal.classList.add('hidden'); }
+        if (e.target === dom.abandonRunModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.abandonRunModal.classList.add('hidden'); }
         if (e.target === dom.settingsModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.settingsModal.classList.add('hidden'); }
         if (e.target === dom.shopModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.shopModal.classList.add('hidden'); }
         if (e.target === dom.skillTreeModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.skillTreeModal.classList.add('hidden'); }
@@ -183,9 +276,81 @@ export function initializeInput(gameController, runCode) {
         if (e.target === dom.exportLevelModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.exportLevelModal.classList.add('hidden'); }
         if (e.target === dom.importLevelModal) { sounds.popupClose(); if (state.p5Instance) state.p5Instance.isModalOpen = false; dom.importLevelModal.classList.add('hidden'); }
         if (e.target === dom.levelUpModal) { dom.levelUpCloseButton.click(); }
-        if (e.target === dom.resultScreen) { dom.resultContinueButton.click(); }
+        if (e.target === dom.levelCompleteModal) { 
+            // Clicks on the modal background for level complete should do nothing, as the user must make a choice.
+        }
+        if (e.target === dom.gameOverModal) { dom.gameOverContinueButton.click(); }
+        if (e.target === dom.homeBaseShopModal) { sounds.popupClose(); if(state.p5Instance) state.p5Instance.isModalOpen = false; dom.homeBaseShopModal.classList.add('hidden'); }
     });
     
+    // --- New Modal Listeners ---
+    dom.closeGameModeModalBtn.addEventListener('click', () => {
+        sounds.popupClose();
+        dom.gameModeModal.classList.add('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+    });
+
+    dom.adventureRunBtn.addEventListener('click', async () => {
+        sounds.popupOpen();
+        dom.gameModeModal.classList.add('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+        
+        await gameController.resetGame(ui.getLevelSettings(), adventureStartLevel);
+    });
+    
+    dom.trialRunBtn.addEventListener('click', async () => {
+        sounds.popupOpen();
+        dom.gameModeModal.classList.add('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+    
+        // Gather balls from home base
+        const homeBaseBricks = gameController.getHomeBaseBricks();
+        const board = gameController.getBoard();
+        const ballStock = {};
+        const processed = new Set();
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = homeBaseBricks[c][r];
+                if (brick && brick.type === 'EmptyCage' && !processed.has(brick)) {
+                    processed.add(brick);
+                    brick.inventory.forEach(ballType => {
+                        ballStock[ballType] = (ballStock[ballType] || 0) + 1;
+                    });
+                    brick.inventory = []; // Consume balls from cages
+                }
+            }
+        }
+        
+        if (Object.keys(ballStock).length === 0) {
+            ballStock['classic'] = 10;
+             gameController.addFloatingText("No balls found! Starting with 10 Classic balls.", {levels: [255,255,100]}, {isBold: true});
+        }
+    
+        await gameController.startTrialRun(ballStock);
+    });
+    
+    dom.closeAbandonRunModalBtn.addEventListener('click', () => {
+        sounds.popupClose();
+        dom.abandonRunModal.classList.add('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+    });
+
+    dom.abandonRunCancelBtn.addEventListener('click', () => {
+        sounds.popupClose();
+        dom.abandonRunModal.classList.add('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+    });
+
+    dom.abandonRunConfirmBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        dom.abandonRunModal.classList.add('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+        if (state.gameMode === 'trialRun') {
+            gameController.refundTrialRunBalls();
+        }
+        gameController.forceGameOver();
+    });
+
     dom.openEquipmentBtn.addEventListener('click', () => {
         sounds.popupOpen();
         dom.openEquipmentBtn.classList.remove('glow');
@@ -200,6 +365,19 @@ export function initializeInput(gameController, runCode) {
         dom.equipmentModal.classList.add('hidden');
     });
 
+    dom.homeBaseShopBtn.addEventListener('click', () => {
+        sounds.popupOpen();
+        if (state.p5Instance) state.p5Instance.isModalOpen = true;
+        ui.renderHomeBaseShopUI(gameController);
+        dom.homeBaseShopModal.classList.remove('hidden');
+    });
+    
+    dom.homeBaseShopModal.querySelector('.close-button').addEventListener('click', () => {
+        sounds.popupClose();
+        if (state.p5Instance) state.p5Instance.isModalOpen = false;
+        dom.homeBaseShopModal.classList.add('hidden');
+    });
+
 
     dom.ballSpeedInput.addEventListener('input', () => dom.ballSpeedValue.textContent = parseFloat(dom.ballSpeedInput.value).toFixed(1));
     dom.volumeSlider.addEventListener('input', () => { const vol = parseFloat(dom.volumeSlider.value); sounds.setMasterVolume(vol); dom.volumeValue.textContent = vol.toFixed(2); });
@@ -207,16 +385,21 @@ export function initializeInput(gameController, runCode) {
     dom.ballCageBrickChanceInput.addEventListener('input', () => dom.ballCageBrickChanceValue.textContent = parseFloat(dom.ballCageBrickChanceInput.value).toFixed(2));
     dom.fewBrickLayoutChanceInput.addEventListener('input', () => dom.fewBrickLayoutChanceValue.textContent = parseFloat(dom.fewBrickLayoutChanceInput.value).toFixed(2));
     
-    dom.generateLevelBtn.addEventListener('click', () => { 
+    dom.generateLevelBtn.addEventListener('click', async () => { 
         sounds.popupClose(); 
-        if (state.p5Instance) { 
-            gameController.resetGame(ui.getLevelSettings()); 
+        if (state.p5Instance) {
+            const newSettings = ui.getLevelSettings();
+            if (state.gameMode === 'trialRun') {
+                state.trialRunLevelSettings = newSettings;
+            } else {
+                await gameController.resetGame(newSettings); 
+                state.isSpedUp = false; 
+                dom.speedToggleBtn.textContent = 'Speed Up'; 
+                dom.speedToggleBtn.classList.remove('speed-active'); 
+            }
             state.p5Instance.isModalOpen = false; 
         } 
         dom.settingsModal.classList.add('hidden'); 
-        state.isSpedUp = false; 
-        dom.speedToggleBtn.textContent = 'Speed Up'; 
-        dom.speedToggleBtn.classList.remove('speed-active'); 
     });
 
     dom.buyBallButton.addEventListener('click', () => { 
@@ -229,6 +412,16 @@ export function initializeInput(gameController, runCode) {
     });
 
     dom.cheatCoinBtn.addEventListener('click', () => { sounds.buttonClick(); if (gameController) gameController.setCoins(gameController.getCoins() + 1000); });
+    dom.cheatFoodBtn.addEventListener('click', () => { 
+        sounds.buttonClick(); 
+        state.playerFood += 10000; 
+        state.maxFood += 10000; 
+    });
+    dom.cheatWoodBtn.addEventListener('click', () => { 
+        sounds.buttonClick(); 
+        state.playerWood += 10000; 
+        state.maxWood += 10000; 
+    });
     
     dom.cheatGemBtn.addEventListener('click', () => {
         sounds.buttonClick();
@@ -333,6 +526,27 @@ export function initializeInput(gameController, runCode) {
         });
     });
 
+    // Handle Edit Base button
+    dom.editBaseBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        gameController.toggleEditor();
+    });
+
+    dom.brickUpgradeBtn.addEventListener('click', () => {
+        const selectedBrick = gameController.getSelectedBrick?.();
+        if (selectedBrick) {
+            sounds.buttonClick();
+            ui.handleUpgradeClick(selectedBrick, gameController);
+        }
+    });
+
     // Initial UI setup
-    ui.updateAllBallTooltips();
+    document.querySelectorAll('.ball-select-btn').forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+            ui.showBallTooltip(btn.dataset.ballType, btn);
+        });
+        btn.addEventListener('mouseleave', () => {
+            ui.hideBallTooltip();
+        });
+    });
 }

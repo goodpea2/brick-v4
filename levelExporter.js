@@ -52,6 +52,7 @@ export function exportLevelToString(bricks, board) {
                     brick.overlay || 'null',
                     brick.widthInCells,
                     brick.heightInCells,
+                    brick.level || 1, // Add level
                 ];
                 data.push(brickData.join(','));
             }

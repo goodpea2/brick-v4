@@ -8,6 +8,7 @@ export const BALL_STATS = {
             brickHitDamage: 0,
             baseDamage: 10,
             powerUpUses: 0,
+            radiusMultiplier: 0.28,
         },
         explosive: {
             hp: 100,
@@ -17,6 +18,7 @@ export const BALL_STATS = {
             powerUpUses: 2,
             radiusTiles: 2.5,
             damage: 30,
+            radiusMultiplier: 0.28,
         },
         piercing: {
             hp: 100,
@@ -25,6 +27,7 @@ export const BALL_STATS = {
             baseDamage: 10,
             powerUpUses: 2,
             contactCount: 5,
+            radiusMultiplier: 0.28,
         },
         split: {
             hp: 100,
@@ -33,6 +36,7 @@ export const BALL_STATS = {
             baseDamage: 10,
             powerUpUses: 1,
             miniBallCount: 2,
+            radiusMultiplier: 0.28,
         },
         brick: {
             hp: 100,
@@ -42,6 +46,7 @@ export const BALL_STATS = {
             powerUpUses: 1,
             spawnRadiusTiles: 3,
             coinChancePercent: 20,
+            radiusMultiplier: 0.28,
         },
         bullet: {
             hp: 100,
@@ -51,6 +56,7 @@ export const BALL_STATS = {
             powerUpUses: 3,
             speedMultiplier: 0.6,
             damage: 10,
+            radiusMultiplier: 0.28,
         },
         homing: {
             hp: 100,
@@ -61,6 +67,7 @@ export const BALL_STATS = {
             turnRate: 0.2,
             damage: 20,
             explosionRadiusTiles: 1.5,
+            radiusMultiplier: 0.28,
         },
         giant: {
             hp: 20,
@@ -68,11 +75,13 @@ export const BALL_STATS = {
             brickHitDamage: 1, // Loses 1 HP per 100 damage dealt
             baseDamage: 1000,
             powerUpUses: 0,
+            radiusMultiplier: 0.8,
         },
         miniball: {
             wallHitDamage: 2,
             brickHitDamage: 0,
             baseDamage: 6,
+            radiusMultiplier: 0.2,
         }
     }
 };
@@ -83,6 +92,13 @@ export const BRICK_STATS = {
         long: 600,
         wool: 50,
         shieldGen: 50,
+        FoodStorage: 100,
+        WoodStorage: 100,
+        Farmland: 100,
+        Sawmill: 100,
+        LogBrick: 1,
+        BallProducer: 50,
+        EmptyCage: 30,
     },
     builder: {
         baseCost: 120,
@@ -136,6 +152,13 @@ export const BRICK_STATS = {
         equipment: false,
         wool: false,
         shieldGen: false,
+        FoodStorage: true,
+        WoodStorage: true,
+        Farmland: true,
+        Sawmill: true,
+        LogBrick: false,
+        BallProducer: true,
+        EmptyCage: true,
     },
     canCarryCoin: {
         normal: true,
@@ -148,6 +171,32 @@ export const BRICK_STATS = {
         equipment: false,
         wool: true,
         shieldGen: false,
+        FoodStorage: false,
+        WoodStorage: false,
+        Farmland: false,
+        Sawmill: false,
+        LogBrick: false,
+        BallProducer: false,
+        EmptyCage: false,
+    },
+    canCarryFood: {
+        normal: true,
+        goal: false,
+        extraBall: true,
+        explosive: false,
+        horizontalStripe: false,
+        verticalStripe: false,
+        ballCage: false,
+        equipment: false,
+        wool: true,
+        shieldGen: false,
+        FoodStorage: false,
+        WoodStorage: false,
+        Farmland: false,
+        Sawmill: false,
+        LogBrick: false,
+        BallProducer: false,
+        EmptyCage: false,
     },
     canCarryGem: {
         normal: true,
@@ -160,6 +209,13 @@ export const BRICK_STATS = {
         equipment: false,
         wool: true,
         shieldGen: false,
+        FoodStorage: false,
+        WoodStorage: false,
+        Farmland: false,
+        Sawmill: false,
+        LogBrick: false,
+        BallProducer: false,
+        EmptyCage: false,
     },
 };
 
@@ -180,6 +236,13 @@ export const BRICK_VISUALS = {
         extraBall: 10,
         wool: 10,
         shieldGen: 10,
+        FoodStorage: 10,
+        WoodStorage: 10,
+        Farmland: 10,
+        Sawmill: 10,
+        LogBrick: 1,
+        BallProducer: 10,
+        EmptyCage: 10,
     },
     palettes: {
         normal: [
@@ -212,6 +275,27 @@ export const BRICK_VISUALS = {
         shieldGen: [
             [0, 229, 255]
         ],
+        FoodStorage: [
+            [205, 133, 63]
+        ],
+        WoodStorage: [
+            [205, 133, 63]
+        ],
+        Farmland: [
+            [65, 150, 25]
+        ],
+        Sawmill: [
+            [65, 150, 25]
+        ],
+        LogBrick: [
+            [139, 69, 19]
+        ],
+        BallProducer: [
+            [40, 180, 120]
+        ],
+        EmptyCage: [
+            [100, 150, 255]
+        ]
     }
 };
 
@@ -285,6 +369,22 @@ export const DEFAULT_LEVEL_SETTINGS = {
     equipmentBrickChancePerLevel: 0.1,
 };
 
+export const TRIAL_RUN_LEVEL_SETTINGS = {
+    ...DEFAULT_LEVEL_SETTINGS,
+    extraBallBricks: 0,
+    brickCount: 60,
+    startingBrickHp: 1000,
+    fewBrickLayoutChance: 0,
+    startingCoin: 0,
+    coinIncrement: 0,
+    maxCoin: 0,
+    equipmentBrickInitialChance: 0,
+    equipmentBrickChancePerLevel: 0,
+    ballCageBrickChance: 0,
+    goalBricks: 5,
+    explosiveBrickChance: 0.02,
+};
+
 export const SHOP_PARAMS = {
     buyBall: { baseCost: 30, increment: 10 },
     mysteriousEquipment: { baseCost: 100, increment: 75 },
@@ -327,4 +427,67 @@ export const UPGRADE_UNLOCK_LEVELS = {
     bonusXp: 999, // Moved to skill tree, effectively disabled
     bulletDamage: UNLOCK_LEVELS.BULLET_BALL,
     homingExplosionRadius: UNLOCK_LEVELS.HOMING_BALL,
+};
+
+export const HOME_BASE_PRODUCTION = {
+    BALL_COST_FOOD: 50,
+    BALL_TIME_FRAMES: 360,
+    PRODUCIBLE_BALLS: ['classic', 'explosive', 'piercing', 'split', 'brick', 'bullet', 'homing'],
+    MAX_QUEUE: 4,
+};
+
+export const HOME_BASE_SHOP_ITEMS = [
+    {
+        id: 'normal',
+        cost: { wood: 100 }
+    },
+    {
+        id: 'Farmland',
+        cost: { wood: 500, gems: 2 }
+    },
+    {
+        id: 'Sawmill',
+        cost: { food: 500, gems: 2 }
+    },
+    {
+        id: 'FoodStorage',
+        cost: { wood: 250 }
+    },
+    {
+        id: 'WoodStorage',
+        cost: { food: 250 }
+    },
+    {
+        id: 'BallProducer',
+        cost: { wood: 0, food: 10, gems: 0 }
+    },
+    {
+        id: 'EmptyCage',
+        cost: { wood: 500 }
+    }
+];
+
+export const ENCHANTER_STATS = {
+    'enchanter1': { name: 'Enchanter I', icon: '🌿', ep: 1 },
+    'enchanter2': { name: 'Enchanter II', icon: '🫘', ep: 4 },
+    'enchanter3': { name: 'Enchanter III', icon: '🧆', ep: 16 },
+    'enchanter4': { name: 'Enchanter IV', icon: '🍬', ep: 64 },
+    'enchanter5': { name: 'Enchanter V', icon: '🍭', ep: 250 },
+};
+
+export const ENCHANTMENT_REQUIREMENTS = [
+    0,   // N/A for level 1
+    4,   // Level 1 -> 2
+    12,  // Level 2 -> 3
+    36,  // Level 3 -> 4
+    108, // Level 4 -> 5
+    216, // Level 5 -> 6
+];
+
+export const ENCHANTMENT_OUTCOMES = {
+    explosive: {
+        A: { name: 'HP', text: '+15% Max HP', apply: (stats) => stats.bonusHpPercent += 0.15 },
+        B: { name: 'Damage', text: '+20% Base Damage', apply: (stats) => stats.bonusDamagePercent += 0.20 },
+        C: { name: 'Power-up', text: '+0.2 Explosion Radius', apply: (stats) => stats.bonusPowerUpValue += 0.2 },
+    }
 };
