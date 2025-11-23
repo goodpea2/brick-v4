@@ -1,7 +1,9 @@
+
 // render.js - All p5.js drawing logic
 
 import { AIMING_SETTINGS, BRICK_STATS } from './balancing.js';
 import { state } from './state.js';
+import { OVERLAY_LEVELING_DATA } from './brickLeveling.js';
 
 function previewTrajectory(p, sP, sV, ball) {
     if (!ball || sV.mag() < 1) return;
@@ -188,9 +190,9 @@ function drawInGameUI(p, ballsInPlay, sharedBallStats) {
 export function renderGame(p, context, timers = {}) {
     const {
         gameState, board, splatBuffer, shakeAmount, isAiming, ballsInPlay, endAimPos, 
-        bricks, ghostBalls, miniBalls, projectiles, xpOrbs,
-        particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
-        combo, sharedBallStats, selectedBrick, flyingIcons, draggedBrick
+        bricks, ghostBalls, miniBalls, projectiles, xpOrbs, enchanterOrbs, lasers, vanishingLasers,
+        particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles, chainVFXs,
+        combo, sharedBallStats, selectedBrick, flyingIcons, draggedBrick, npcBalls
     } = context;
 
     p.background(40, 45, 55);
@@ -285,14 +287,80 @@ export function renderGame(p, context, timers = {}) {
                         timerState = timers.producer[key];
                     }
                 }
-                brick.draw(board, timerState);
+                const targetsForOverlays = (state.gameMode === 'invasionDefend') ? npcBalls : ballsInPlay;
+                brick.draw(board, timerState, null, targetsForOverlays);
                 drawnBricks.add(brick);
+
+                // --- Ingredient Highlight Logic ---
+                if (state.highlightedIngredientIds.has(brick.id)) {
+                    const pos = brick.getPixelPos(board);
+                    const totalWidth = brick.size * brick.widthInCells;
+                    const totalHeight = brick.size * brick.heightInCells;
+                    
+                    p.noFill();
+                    p.stroke(255, 0, 0); // Red
+                    p.strokeWeight(4);
+                    p.drawingContext.shadowBlur = 15;
+                    p.drawingContext.shadowColor = 'red';
+                    
+                    // Simple rect highlight
+                    p.rect(pos.x - 2, pos.y - 2, totalWidth + 4, totalHeight + 4, 4);
+
+                    // Reset shadow for other drawings
+                    p.drawingContext.shadowBlur = 0;
+                    p.drawingContext.shadowColor = 'transparent';
+                }
+                
+                // --- Sell Confirmation Highlight ---
+                if (state.brickForSellConfirm === brick) {
+                    const pos = brick.getPixelPos(board);
+                    const totalWidth = brick.size * brick.widthInCells;
+                    const totalHeight = brick.size * brick.heightInCells;
+                    
+                    p.noFill();
+                    p.stroke(255, 50, 50); // Bright Red
+                    p.strokeWeight(3);
+                    p.drawingContext.shadowBlur = 20;
+                    p.drawingContext.shadowColor = 'red';
+                    
+                    // Simple rect highlight
+                    p.rect(pos.x - 2, pos.y - 2, totalWidth + 4, totalHeight + 4, 4);
+
+                    // Reset shadow
+                    p.drawingContext.shadowBlur = 0;
+                    p.drawingContext.shadowColor = 'transparent';
+                }
             }
         }
     }
     
-    // Draw selected brick highlight in home base
-    if (gameState === 'homeBase' && selectedBrick && !draggedBrick) {
+    if (state.gameMode === 'homeBase' && state.isMovingOverlay) {
+        const processedHighlights = new Set();
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = bricks[c][r];
+                if (brick && !processedHighlights.has(brick)) {
+                    processedHighlights.add(brick);
+                    const isValidTarget = brick.type === 'normal' && !brick.overlayId;
+                    const pos = brick.getPixelPos(board);
+                    const w = brick.size * brick.widthInCells;
+                    const h = brick.size * brick.heightInCells;
+                    
+                    if (isValidTarget) {
+                        p.fill(0, 255, 0, 80);
+                    } else {
+                        p.fill(255, 0, 0, 80);
+                    }
+                    p.noStroke();
+                    p.rect(pos.x, pos.y, w, h);
+                }
+            }
+        }
+    }
+
+
+    const isInteractiveHomeBase = (gameState === 'homeBase' && !state.isEditorMode) || (gameState === 'aiming' && state.gameMode === 'invasionDefend');
+    if (isInteractiveHomeBase && selectedBrick && !draggedBrick) {
         const brick = selectedBrick;
         const pos = brick.getPixelPos(board);
         const totalWidth = brick.size * brick.widthInCells;
@@ -309,6 +377,27 @@ export function renderGame(p, context, timers = {}) {
             p.drawingContext.setLineDash([5, 5]);
             p.ellipse(cX, cY, radius * 2);
             p.drawingContext.setLineDash([]);
+        }
+        
+        // Sniper range
+        if (brick.overlay === 'sniper' && brick.overlayId) {
+             const overlayItem = state.overlayInventory.find(o => o.id === brick.overlayId);
+             if (overlayItem) {
+                 const levelIdx = overlayItem.level - 1;
+                 const data = OVERLAY_LEVELING_DATA.sniper[levelIdx];
+                 if (data && data.stats && data.stats.rangeTiles) {
+                    const cX = pos.x + totalWidth / 2;
+                    const cY = pos.y + totalHeight / 2;
+                    const radius = data.stats.rangeTiles * board.gridUnitSize;
+                    
+                    p.noFill();
+                    p.stroke(255, 80, 80, 200); // Reddish for sniper
+                    p.strokeWeight(2);
+                    p.drawingContext.setLineDash([5, 5]);
+                    p.ellipse(cX, cY, radius * 2);
+                    p.drawingContext.setLineDash([]);
+                 }
+             }
         }
 
         p.noFill();
@@ -358,6 +447,93 @@ export function renderGame(p, context, timers = {}) {
         draggedBrick.draw(board, null, previewPos);
         p.pop();
     }
+
+    // --- Draw Sniper Lines and Laser Beams ---
+    const drawnOverlaysForRender = new Set();
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && !drawnOverlaysForRender.has(brick)) {
+                drawnOverlaysForRender.add(brick);
+
+                if (brick.overlay === 'sniper') {
+                    const brickPos = brick.getPixelPos(board).add(brick.size / 2, brick.size / 2);
+                    const radius = brick.size * 0.6;
+                
+                    p.noFill();
+                    p.strokeWeight(3);
+                    p.stroke(0, 0, 0, 100);
+                    p.ellipse(brickPos.x, brickPos.y, radius);
+                
+                    const progress = brick.sniperCharge / BRICK_STATS.sniper.cooldownFrames;
+                    const angle = progress * p.TWO_PI;
+                    p.stroke(255, 0, 0, 200);
+                    p.arc(brickPos.x, brickPos.y, radius, radius, -p.HALF_PI, -p.HALF_PI + angle);
+                    
+                    let currentTarget = null;
+                    if (state.gameMode === 'invasionDefend') {
+                        if (npcBalls.length > 0) {
+                            let nearestNpc = null;
+                            let minNpcDistSq = Infinity;
+                            npcBalls.forEach(npc => {
+                                const dSq = p.constructor.Vector.sub(brickPos, npc.pos).magSq();
+                                if (dSq < minNpcDistSq) {
+                                    minNpcDistSq = dSq;
+                                    nearestNpc = npc;
+                                }
+                            });
+                            currentTarget = nearestNpc;
+                        }
+                    } else {
+                         if (ballsInPlay.length > 0) {
+                            currentTarget = ballsInPlay[0];
+                        }
+                    }
+                
+                    if (currentTarget && (gameState === 'playing' || gameState === 'levelClearing' || (state.gameMode === 'invasionDefend' && gameState === 'aiming'))) {
+                        const dist = p.dist(brickPos.x, brickPos.y, currentTarget.pos.x, currentTarget.pos.y);
+                        const range = BRICK_STATS.sniper.rangeTiles * board.gridUnitSize;
+                
+                        if (dist <= range) {
+                            p.stroke(255, 0, 0, 80);
+                            p.strokeWeight(1);
+                            p.line(brickPos.x, brickPos.y, currentTarget.pos.x, currentTarget.pos.y);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Laser beams
+    if (lasers && lasers.length > 0) {
+        lasers.forEach(laser => {
+            p.push();
+            p.strokeWeight(3);
+            const pulse = p.map(p.sin(p.frameCount * 0.2), -1, 1, 100, 255);
+            p.stroke(255, 80, 200, pulse);
+            p.line(laser.start.x, laser.start.y, laser.end.x, laser.end.y);
+            p.strokeWeight(10);
+            p.stroke(255, 80, 200, pulse * 0.3);
+            p.line(laser.start.x, laser.start.y, laser.end.x, laser.end.y);
+            p.pop();
+        });
+    }
+
+    // Vanishing Laser beams VFX
+    if (vanishingLasers && vanishingLasers.length > 0) {
+        vanishingLasers.forEach(laser => {
+            const progress = 1 - (laser.vanishTimer / 20); // 20 is the initial timer
+            const width = p.map(progress, 0, 1, 3, 20);
+            const alpha = p.map(progress, 0, 1, 200, 0);
+            
+            p.push();
+            p.strokeWeight(width);
+            p.stroke(255, 80, 200, alpha);
+            p.line(laser.start.x, laser.start.y, laser.end.x, laser.end.y);
+            p.pop();
+        });
+    }
     
     ballsInPlay.forEach(b => { 
         b.flashTime = sharedBallStats.flashTime; 
@@ -400,14 +576,17 @@ export function renderGame(p, context, timers = {}) {
     ghostBalls.forEach(gb => gb.draw());
     miniBalls.forEach(mb => mb.draw());
     projectiles.forEach(proj => proj.draw());
+    npcBalls.forEach(npc => npc.draw());
     xpOrbs.forEach(orb => orb.draw());
+    enchanterOrbs.forEach(orb => orb.draw());
     
     const drawnOverlays = new Set();
     for (let c = 0; c < board.cols; c++) {
         for (let r = 0; r < board.rows; r++) {
             const brick = bricks[c][r];
             if (brick && !drawnOverlays.has(brick)) {
-                brick.drawOverlays(board);
+                const targetsForOverlays = (state.gameMode === 'invasionDefend') ? npcBalls : ballsInPlay;
+                brick.drawOverlays(board, targetsForOverlays);
                 drawnOverlays.add(brick);
             }
         }
@@ -476,7 +655,7 @@ export function renderGame(p, context, timers = {}) {
     }
 
     if (flyingIcons) flyingIcons.forEach(fi => fi.draw());
-    [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs].forEach(vfxArray => vfxArray.forEach(v => v.draw()));
+    [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, chainVFXs].forEach(vfxArray => vfxArray.forEach(v => v.draw()));
     
     drawGoldenTurnAnnouncement(p, board, gameState);
     drawLiveCombo(p, combo);

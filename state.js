@@ -1,3 +1,4 @@
+
 // state.js
 import { SHOP_PARAMS, INITIAL_UPGRADE_STATE, XP_SETTINGS, TRIAL_RUN_LEVEL_SETTINGS } from './balancing.js';
 
@@ -6,7 +7,7 @@ import { SHOP_PARAMS, INITIAL_UPGRADE_STATE, XP_SETTINGS, TRIAL_RUN_LEVEL_SETTIN
 
 export const state = {
     p5Instance: null,
-    gameMode: 'homeBase', // 'homeBase' | 'adventureRun' | 'trialRun'
+    gameMode: 'homeBase', // 'homeBase' | 'adventureRun' | 'trialRun' | 'invasionDefend'
     isRunning: true,
     isSpedUp: false,
     originalBallSpeed: 0.4,
@@ -32,6 +33,11 @@ export const state = {
     lifetimeXp: 0,
     playerFood: 1000,
     playerWood: 1000,
+    playerMaterials: {
+        metal: 100,
+        wire: 100,
+        fuel: 100,
+    },
     playerEnchanters: {
         enchanter1: 0,
         enchanter2: 0,
@@ -43,13 +49,13 @@ export const state = {
     maxWood: 1000,
     skillTreeState: {}, // Flat object mapping skill ID to true if purchased
     ballEnchantments: {
-        classic: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
-        explosive: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
-        piercing: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
-        split: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
-        brick: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
-        bullet: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
-        homing: { level: 1, outcomes: [], bonusHpPercent: 0, bonusDamagePercent: 0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        classic: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusChainDamage: 0, productionCostMultiplier: 1.0 },
+        explosive: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusPowerUpValue: 0, productionCostMultiplier: 1.0 },
+        piercing: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusEnergyShieldDuration: 0, productionCostMultiplier: 1.0 },
+        split: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusMainBallArmor: 0, productionCostMultiplier: 1.0 },
+        brick: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusPowerUpMineCount: 0, productionCostMultiplier: 1.0 },
+        bullet: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusLastPowerUpBulletCount: 0, productionCostMultiplier: 1.0 },
+        homing: { level: 1, outcomes: [], hpMultiplier: 1.0, damageMultiplier: 1.0, bonusHomingExplosionDamage: 0, productionCostMultiplier: 1.0 },
     },
     equipmentBrickSpawnChance: 0.1, // This will be initialized from settings
     milestonesCompleted: {},
@@ -59,12 +65,32 @@ export const state = {
     homeBaseInventory: [],
     isInitialHomeBaseLayoutLoaded: false,
     
+    // Goal Brick Progression
+    goalBrickLevel: 1,
+    goalBrickXp: 0,
+    
     // In-run State
     nextRoomType: 'normal', // 'normal' | 'gem' | 'food' | 'wood' | 'lucky' | 'danger'
     isGoldenTurn: false,
     trialRunBallStock: {}, // e.g. { classic: 10, explosive: 5 }
     trialRunLevelSettings: { ...TRIAL_RUN_LEVEL_SETTINGS },
-    
+    invasionWave: 1,
+    invasionBallHPPool: 150,
+    invasionSettings: {
+        startingHPPool: 150,
+        hpPoolIncrementPerWave: 50,
+        minEnemyTypes: 1,
+        maxEnemyTypes: 3,
+    },
+
+    // Home Base State
+    homeBaseTimeMultiplier: 1,
+    homeBaseTimeMultiplierEnd: 0,
+    overlayInventory: [], // { id: uuid, type: 'spike', level: 1, hostBrickId: uuid }
+    isMovingOverlay: null, // overlayId: uuid
+    highlightedIngredientIds: new Set(), // ids of bricks consumed in upgrade
+    brickForSellConfirm: null, // Brick object that is pending sale confirmation
+
     // Editor State
     isEditorMode: false,
     editorTool: 'place',

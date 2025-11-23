@@ -464,29 +464,6 @@ main {
     background-position: center;
 }
 
-.ball-select-btn .tooltip {
-    visibility: hidden;
-    width: 180px;
-    background-color: var(--color-inv-bg);
-    color: var(--color-inv-text);
-    text-align: center;
-    border-radius: 6px;
-    padding: 5px 0;
-    position: absolute;
-    z-index: 1;
-    bottom: 125%; /* Default: above button */
-    left: 50%;
-    transform: translateX(-50%);
-    opacity: 0;
-    transition: opacity 0.3s;
-    font-size: 12px;
-}
-
-.ball-select-btn:hover .tooltip {
-    visibility: visible;
-    opacity: 1;
-}
-
 .ball-select-btn .ball-count-badge {
     position: absolute;
     top: -5px;
@@ -780,13 +757,6 @@ main {
         writing-mode: vertical-rl;
         text-orientation: mixed;
         margin: 5px 0 10px 0;
-    }
-
-    .ball-select-btn .tooltip {
-        left: 125%;
-        top: 50%;
-        bottom: auto;
-        transform: translateY(-50%);
     }
 }
 

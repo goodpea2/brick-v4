@@ -10,6 +10,45 @@ let selectedBallType = 'explosive';
 let ingredientSlots = [null, null, null];
 let enchantmentResult = null; // { success: bool, outcome: object|null }
 
+export const BALL_ENCHANTMENT_DISPLAY_CONFIG = {
+    classic: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.10, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Chain Damage', getCurrent: (base, ench) => ench.bonusChainDamage || 0, getIncrease: () => 2, format: v => v }
+    ],
+    explosive: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Explosion Radius', getCurrent: (base, ench) => (base.radiusTiles || 0) + (ench.bonusPowerUpValue || 0), getIncrease: () => 0.2, format: v => v.toFixed(1) }
+    ],
+    piercing: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Shield Duration on Power-up', getCurrent: (base, ench) => ench.bonusEnergyShieldDuration || 0, getIncrease: () => 0.5, format: v => `${v.toFixed(1)}s` }
+    ],
+    split: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Main Ball Armor', getCurrent: (base, ench) => ench.bonusMainBallArmor || 0, getIncrease: () => 1, format: v => v }
+    ],
+    brick: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Mines Spawned on Power-up', getCurrent: (base, ench) => ench.bonusPowerUpMineCount || 0, getIncrease: () => 1, format: v => v }
+    ],
+    bullet: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Extra Bullets on Last Power-up', getCurrent: (base, ench) => ench.bonusLastPowerUpBulletCount || 0, getIncrease: () => 4, format: v => v }
+    ],
+    homing: [
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
+        { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
+        { name: 'Homing Projectile Damage', getCurrent: (base, ench) => (base.damage || 0) + (ench.bonusHomingExplosionDamage || 0), getIncrease: () => 10, format: v => v }
+    ],
+};
+
+
 export function initialize(controller, visuals) {
     gameController = controller;
     ballVisuals = visuals;
@@ -114,55 +153,72 @@ export function renderEnchantmentUI() {
     const currentLevel = enchantmentData.level;
     const maxLevel = ENCHANTMENT_REQUIREMENTS.length;
 
-    // --- NEW STATS DISPLAY ---
+    // --- DYNAMIC STATS DISPLAY ---
     const baseStats = BALL_STATS.types[selectedBallType];
-    const totalBonusHp = baseStats.hp * enchantmentData.bonusHpPercent;
-    const totalBonusDamage = baseStats.baseDamage * enchantmentData.bonusDamagePercent;
-    const currentCost = HOME_BASE_PRODUCTION.BALL_COST_FOOD * enchantmentData.productionCostMultiplier;
-
-    const potentialOutcomes = ENCHANTMENT_OUTCOMES[selectedBallType];
-    let hpIncrease = 0, damageIncrease = 0, radiusIncrease = 0;
-
-    if (potentialOutcomes) {
-        if (potentialOutcomes.A) hpIncrease = baseStats.hp * 0.15; // From outcome logic
-        if (potentialOutcomes.B) damageIncrease = baseStats.baseDamage * 0.20; // From outcome logic
-        if (potentialOutcomes.C) radiusIncrease = 0.2; // From outcome logic
+    const displayConfig = BALL_ENCHANTMENT_DISPLAY_CONFIG[selectedBallType];
+    
+    let statsListHTML = '';
+    if (displayConfig && currentLevel < maxLevel) {
+        displayConfig.forEach(statConf => {
+            const currentValue = statConf.getCurrent(baseStats, enchantmentData);
+            const increaseValue = statConf.getIncrease(currentValue);
+            
+            statsListHTML += `
+                <li>
+                    <span>${statConf.name}:</span>
+                    <span>${statConf.format(currentValue)}</span>
+                    <span>&rarr;</span>
+                    <span>+${statConf.format(increaseValue)} ?</span>
+                </li>
+            `;
+        });
+    } else if (displayConfig) {
+        // Just show current stats if max level
+         displayConfig.forEach(statConf => {
+            const currentValue = statConf.getCurrent(baseStats, enchantmentData);
+            statsListHTML += `
+                <li>
+                    <span>${statConf.name}:</span>
+                    <span>${statConf.format(currentValue)}</span>
+                    <span></span>
+                    <span></span>
+                </li>
+            `;
+        });
     }
+
+    const currentCost = HOME_BASE_PRODUCTION.BALL_COST_FOOD * enchantmentData.productionCostMultiplier;
     
-    // Average cost increase is ~22.5%
-    const costIncrease = currentCost * 0.225;
+    let costIncreaseHTML = '';
+    if (currentLevel < maxLevel) {
+        const costIncrease = currentCost * 0.15;
+        costIncreaseHTML = `
+            <span>&rarr;</span>
+            <span>+${Math.round(costIncrease)}~${Math.round(costIncrease*2)}</span>
+        `;
+    } else {
+        costIncreaseHTML = '<span></span><span></span>';
+    }
+
+    statsListHTML += `
+        <li>
+            <span>Production Cost:</span>
+            <span>🥕 ${Math.round(currentCost)}</span>
+            ${costIncreaseHTML}
+        </li>
+    `;
     
+    const nextLevelText = currentLevel < maxLevel ? `&rarr; ${currentLevel + 1}` : '(MAX)';
+
     const statsHTML = `
-        <h3>${selectedBallType.charAt(0).toUpperCase() + selectedBallType.slice(1)} Ball - Level ${currentLevel} &rarr; ${currentLevel + 1}</h3>
+        <h3>${selectedBallType.charAt(0).toUpperCase() + selectedBallType.slice(1)} Ball - Level ${currentLevel} ${nextLevelText}</h3>
         <ul>
-            <li>
-                <span>Hit Point:</span>
-                <span>${baseStats.hp} (+${totalBonusHp.toFixed(0)})</span>
-                <span>&rarr;</span>
-                <span>+${hpIncrease.toFixed(0)} ?</span>
-            </li>
-            <li>
-                <span>Direct Damage:</span>
-                <span>${baseStats.baseDamage} (+${totalBonusDamage.toFixed(1)})</span>
-                <span>&rarr;</span>
-                <span>+${damageIncrease.toFixed(1)} ?</span>
-            </li>
-            <li>
-                <span>Explosion Radius:</span>
-                <span>${baseStats.radiusTiles.toFixed(1)} (+${enchantmentData.bonusPowerUpValue.toFixed(1)})</span>
-                <span>&rarr;</span>
-                <span>+${radiusIncrease.toFixed(1)} ?</span>
-            </li>
-            <li>
-                <span>Production Cost:</span>
-                <span>🥕 ${Math.round(currentCost)}</span>
-                <span>&rarr;</span>
-                <span>+${Math.round(costIncrease)} ?</span>
-            </li>
+            ${statsListHTML}
         </ul>
     `;
+
     mainPanel.innerHTML = `<div class="enchant-stats-display">${statsHTML}</div>`;
-    // --- END NEW STATS DISPLAY ---
+    // --- END DYNAMIC STATS DISPLAY ---
 
     if (currentLevel < maxLevel) {
         const requiredEP = ENCHANTMENT_REQUIREMENTS[currentLevel];
@@ -217,7 +273,7 @@ export function renderEnchantmentUI() {
         enchantBtn.disabled = totalEP === 0;
         enchantBtn.onclick = handleEnchant;
 
-        // --- NEW CONTROLS DISPLAY ---
+        // --- UPDATED CONTROLS DISPLAY (Color) ---
         const p = state.p5Instance;
         let barColor;
         if (p) {
@@ -226,11 +282,11 @@ export function renderEnchantmentUI() {
             const green = p.color('#98FB98');
             let lerpedColor;
             if (successRate <= 20) {
-                lerpedColor = p.lerpColor(red, yellow, p.map(successRate, 0, 20, 0, 1));
+                lerpedColor = red;
             } else if (successRate <= 60) {
-                lerpedColor = p.lerpColor(yellow, green, p.map(successRate, 20, 60, 0, 1));
+                lerpedColor = p.lerpColor(red, yellow, p.map(successRate, 20, 60, 0, 1));
             } else {
-                lerpedColor = green;
+                lerpedColor = p.lerpColor(yellow, green, p.map(successRate, 60, 100, 0, 1));
             }
             barColor = lerpedColor.toString();
         } else {
@@ -239,13 +295,13 @@ export function renderEnchantmentUI() {
 
         controlsContainer.innerHTML = `
             <div>
-                <strong style="font-size: 1.4em; color: #ff4136;">Success rate: ${successRate.toFixed(0)}%</strong>
+                <strong style="font-size: 1.4em; color: ${barColor};">Success rate: ${successRate.toFixed(0)}%</strong>
                 <div class="progress-bar-container">
                     <div class="progress-bar-fill" style="width: ${successRate}%; background-color: ${barColor};"></div>
                 </div>
             </div>
         `;
-        // --- END NEW CONTROLS DISPLAY ---
+        // --- END UPDATED CONTROLS DISPLAY ---
 
         controlsContainer.appendChild(enchantBtn);
         mainPanel.appendChild(controlsContainer);

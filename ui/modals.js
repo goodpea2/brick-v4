@@ -1,3 +1,4 @@
+
 // ui/modals.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
@@ -172,28 +173,74 @@ export function showGameOverModal(title, isGameOver = false, stats, levelReached
         dom.pauseResumeBtn.textContent = 'Resume';
     }
     
-    dom.gameOverTitle.textContent = title;
-    dom.gameOverTitle.classList.toggle('game-over', isGameOver);
+    const allStatBoxes = dom.gameOverModal.querySelectorAll('.stat-box');
+    allStatBoxes.forEach(box => box.style.display = 'block');
+    dom.gameOverModal.querySelector('hr').style.display = 'block';
+    dom.gameOverModal.querySelector('h4').style.display = 'block';
 
-    if (gameMode === 'trialRun') {
-        state.trialRunHighestLevelReached = Math.max(state.trialRunHighestLevelReached, levelReached);
+    // Reset stat labels for adventure run defaults
+    dom.statGO_GemsCollected.parentElement.querySelector('.stat-label').textContent = 'Gems 💎';
+    dom.statGO_FoodCollected.parentElement.querySelector('.stat-label').textContent = 'Food 🥕';
+    dom.statGO_WoodCollected.parentElement.querySelector('.stat-label').textContent = 'Wood 🪵';
+
+    if (gameMode === 'invasionDefend') {
+        dom.gameOverTitle.textContent = 'Base Overrun!';
+        dom.gameOverTitle.classList.add('game-over');
+
+        allStatBoxes.forEach(box => box.style.display = 'none');
+        dom.gameOverModal.querySelector('hr').style.display = 'none';
+        dom.gameOverModal.querySelector('h4').style.display = 'none';
+
+        dom.statGO_LevelReached.parentElement.style.display = 'block';
+        dom.statGO_LevelReached.parentElement.querySelector('.stat-label').textContent = 'Wave Reached';
+        dom.statGO_LevelReached.textContent = state.invasionWave;
+
+        dom.statGO_XpCollected.parentElement.style.display = 'block';
+        if (stats) dom.statGO_XpCollected.textContent = Math.floor(stats.totalXpCollected);
+
     } else {
-        state.highestLevelReached = Math.max(state.highestLevelReached, levelReached);
-        state.previousRunLevel = levelReached;
+        dom.gameOverTitle.textContent = title;
+        dom.gameOverTitle.classList.toggle('game-over', isGameOver);
+
+        dom.statGO_LevelReached.parentElement.querySelector('.stat-label').textContent = 'Level Reached';
+
+        if (gameMode === 'trialRun') {
+            state.trialRunHighestLevelReached = Math.max(state.trialRunHighestLevelReached, levelReached);
+            
+            // Repurpose resource boxes for Trial Run loot
+            dom.statGO_GemsCollected.parentElement.querySelector('.stat-label').textContent = 'Metal 🪨';
+            dom.statGO_FoodCollected.parentElement.querySelector('.stat-label').textContent = 'Wire 🪢';
+            dom.statGO_WoodCollected.parentElement.querySelector('.stat-label').textContent = 'Fuel 🧊';
+
+            // Hide XP box for Trial Run to focus on materials (or keep it if XP is relevant, usually not much)
+            dom.statGO_XpCollected.parentElement.style.display = 'none';
+        } else if (gameMode === 'adventureRun') {
+            state.highestLevelReached = Math.max(state.highestLevelReached, levelReached);
+            state.previousRunLevel = levelReached;
+            dom.statGO_XpCollected.parentElement.style.display = 'block';
+        }
+
+        if (stats) {
+            dom.statGO_LevelReached.textContent = levelReached;
+            dom.statGO_TotalBallsUsed.textContent = stats.totalBallsUsed;
+            dom.statGO_TotalDamageDealt.textContent = Math.floor(stats.totalDamageDealt);
+            dom.statGO_BestCombo.textContent = stats.bestCombo;
+            dom.statGO_TotalEquipCollected.textContent = stats.totalEquipmentsCollected;
+            dom.statGO_TotalCoinsCollected.textContent = stats.totalCoinsCollected;
+            dom.statGO_XpCollected.textContent = Math.floor(stats.totalXpCollected);
+
+            if (gameMode === 'trialRun') {
+                dom.statGO_GemsCollected.textContent = stats.totalMetalCollected || 0;
+                dom.statGO_FoodCollected.textContent = stats.totalWireCollected || 0;
+                dom.statGO_WoodCollected.textContent = stats.totalFuelCollected || 0;
+            } else {
+                dom.statGO_GemsCollected.textContent = stats.totalGemsCollected;
+                dom.statGO_FoodCollected.textContent = stats.totalFoodCollected;
+                dom.statGO_WoodCollected.textContent = stats.totalWoodCollected;
+            }
+        }
     }
 
-    if (stats) {
-        dom.statGO_LevelReached.textContent = levelReached;
-        dom.statGO_TotalBallsUsed.textContent = stats.totalBallsUsed;
-        dom.statGO_TotalDamageDealt.textContent = Math.floor(stats.totalDamageDealt);
-        dom.statGO_BestCombo.textContent = stats.bestCombo;
-        dom.statGO_TotalEquipCollected.textContent = stats.totalEquipmentsCollected;
-        dom.statGO_TotalCoinsCollected.textContent = stats.totalCoinsCollected;
-        dom.statGO_XpCollected.textContent = Math.floor(stats.totalXpCollected);
-        dom.statGO_GemsCollected.textContent = stats.totalGemsCollected;
-        dom.statGO_FoodCollected.textContent = stats.totalFoodCollected;
-        dom.statGO_WoodCollected.textContent = stats.totalWoodCollected;
-    }
 
     dom.gameOverModal.classList.remove('hidden');
 }

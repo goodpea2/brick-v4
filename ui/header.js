@@ -1,10 +1,12 @@
+
 // ui/header.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
 import { XP_SETTINGS, UNLOCK_LEVELS } from '../balancing.js';
 import { updateBallSelectorUI } from './ballSelector.js';
+import { renderInvasionLootPanel, renderTrialLootPanel } from './invasionLoot.js';
 
-export function updateHeaderUI(level, mainLevel, balls, giantBalls, seed, coins, gems, food, wood, gameState, debugStats, runStats, equipmentCount, ballsInPlay = [], miniBalls = [], calculateBallDamage, combo) {
+export function updateHeaderUI(level, mainLevel, balls, giantBalls, seed, coins, gems, food, wood, gameState, debugStats, runStats, equipmentCount, ballsInPlay = [], miniBalls = [], calculateBallDamage, combo, npcBallCount, invasionWave) {
     const p = state.p5Instance;
     // Update common progression UI for all modes
     updateProgressionUI(mainLevel, state.currentXp, state.xpForNextLevel, state.pendingXp);
@@ -22,54 +24,92 @@ export function updateHeaderUI(level, mainLevel, balls, giantBalls, seed, coins,
     // If not in a run, we're done with this panel.
     if (state.gameMode === 'homeBase') {
         dom.runLootPanel.classList.add('hidden');
+        dom.invasionLootPanel.classList.add('hidden');
+        dom.prevLevelBtn.disabled = true;
+        dom.nextLevelBtn.disabled = true;
         return;
     }
 
     // Update run-specific panel
-    let gameModeName = 'GAME';
-    if (state.gameMode === 'adventureRun') {
-        gameModeName = 'ADVENTURE RUN';
-    } else if (state.gameMode === 'trialRun') {
-        gameModeName = 'TRIAL RUN';
-    }
-    dom.gameModeHeader.textContent = `${gameModeName} - Level ${level}`;
+    if (state.gameMode === 'invasionDefend') {
+        dom.gameModeHeader.textContent = `INVASION - WAVE ${invasionWave}`;
+        
+        dom.runBallCount.parentElement.classList.add('hidden');
+        dom.runEquipmentBtn.classList.add('hidden');
+        dom.runShopBtn.classList.add('hidden');
+        
+        dom.runLootPanel.classList.add('hidden');
+        dom.invasionLootPanel.classList.remove('hidden');
+        renderInvasionLootPanel();
 
-    const isAdventure = state.gameMode === 'adventureRun';
-    const isTrial = state.gameMode === 'trialRun';
+        dom.ballSelector.classList.add('hidden');
+        dom.ballSelectorArrow.style.visibility = 'hidden';
 
-    // Ball Count
-    let ballDisplayText = '0';
-    if (isAdventure) {
-        ballDisplayText = balls;
-    } else if (isTrial) {
-        ballDisplayText = Object.values(state.trialRunBallStock).reduce((sum, count) => sum + count, 0);
-    }
-    dom.runBallCount.textContent = ballDisplayText;
+        dom.prevLevelBtn.disabled = (invasionWave <= 1);
+        dom.nextLevelBtn.disabled = false;
 
-    // Shop
-    const showShop = isAdventure && mainLevel >= UNLOCK_LEVELS.COINS_SHOP;
-    dom.runShopBtn.classList.toggle('hidden', !showShop);
-    if(showShop) {
-        dom.runShopCoinCount.textContent = coins;
-    }
+    } else {
+        let gameModeName = 'GAME';
+        if (state.gameMode === 'adventureRun') {
+            gameModeName = 'ADVENTURE RUN';
+        } else if (state.gameMode === 'trialRun') {
+            gameModeName = 'TRIAL RUN';
+        }
+        dom.gameModeHeader.textContent = `${gameModeName} - Level ${level}`;
 
-    // Equipment
-    const showEquipment = isAdventure && mainLevel >= UNLOCK_LEVELS.EQUIPMENT;
-    dom.runEquipmentBtn.classList.toggle('hidden', !showEquipment);
-    if(showEquipment) {
-        dom.runEquipmentCount.textContent = equipmentCount;
-    }
+        const isAdventure = state.gameMode === 'adventureRun';
+        const isTrial = state.gameMode === 'trialRun';
 
-    // Loot
-    const showLoot = isAdventure;
-    dom.runLootPanel.classList.toggle('hidden', !showLoot);
-    if (showLoot && runStats) {
-        dom.runFoodCount.textContent = runStats.totalFoodCollected;
-        dom.runWoodCount.textContent = runStats.totalWoodCollected;
+        // Ball Count
+        dom.runBallCount.parentElement.classList.remove('hidden');
+        dom.runBallCount.parentElement.querySelector('.stat-label').textContent = 'Balls';
+        let ballDisplayText = '0';
+        if (isAdventure) {
+            ballDisplayText = balls;
+        } else if (isTrial) {
+            ballDisplayText = Object.values(state.trialRunBallStock).reduce((sum, count) => sum + count, 0);
+        }
+        dom.runBallCount.textContent = ballDisplayText;
+
+        // Shop
+        const showShop = isAdventure && mainLevel >= UNLOCK_LEVELS.COINS_SHOP;
+        dom.runShopBtn.classList.toggle('hidden', !showShop);
+        if(showShop) {
+            dom.runShopBtn.querySelector('.stat-label').textContent = 'Shop';
+            dom.runShopCoinCount.textContent = coins;
+        }
+
+        // Equipment
+        const showEquipment = isAdventure && mainLevel >= UNLOCK_LEVELS.EQUIPMENT;
+        dom.runEquipmentBtn.classList.toggle('hidden', !showEquipment);
+        if(showEquipment) {
+            dom.runEquipmentCount.textContent = equipmentCount;
+        }
+
+        // Loot Panel Logic
+        if (isAdventure) {
+            if (mainLevel >= UNLOCK_LEVELS.HOME_BASE) {
+                dom.runLootPanel.classList.remove('hidden');
+            } else {
+                dom.runLootPanel.classList.add('hidden');
+            }
+            dom.invasionLootPanel.classList.add('hidden');
+            if (runStats) {
+                dom.runFoodCount.textContent = runStats.totalFoodCollected;
+                dom.runWoodCount.textContent = runStats.totalWoodCollected;
+            }
+        } else if (isTrial) {
+            dom.runLootPanel.classList.add('hidden');
+            dom.invasionLootPanel.classList.remove('hidden');
+            renderTrialLootPanel(); // Show materials loot
+        }
+        
+        // Update ball selector for current mode
+        updateBallSelectorUI(mainLevel, balls, giantBalls, gameState);
+
+        dom.prevLevelBtn.disabled = (level <= 1);
+        dom.nextLevelBtn.disabled = false;
     }
-    
-    // Update ball selector for current mode
-    updateBallSelectorUI(mainLevel, balls, giantBalls, gameState);
     
     if (state.isDebugView) {
         dom.debugLifetimeGemStat.textContent = state.lifetimeGems;

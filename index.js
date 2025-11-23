@@ -1,7 +1,8 @@
+
 // index.js - Main Application Entry Point
 
 import { sketch } from './sketch.js';
-import { initializeInput } from './input.js';
+import { initializeInput } from './ui/input.js';
 import { state, applyAllUpgrades } from './state.js';
 import { sounds } from './sfx.js';
 import * as dom from './dom.js';
@@ -12,6 +13,9 @@ import { initialize as initializeLevelImporter } from './levelImporter.js';
 import { initialize as initializeBrickLeveling } from './brickLeveling.js';
 import { initialize as initializeHomeBaseContext, setBallVisuals as setHomeBaseBallVisuals } from './ui/homeBaseContext.js';
 import { initialize as initializeEnchantment } from './ui/enchantment.js';
+import { initialize as initializeInvasionShop } from './ui/invasionShop.js';
+import { initialize as initializeInvasionLoot } from './ui/invasionLoot.js';
+import { initialize as initializeSaveManager } from './saveManager.js';
 
 let p5Instance;
 let gameController;
@@ -74,6 +78,14 @@ document.addEventListener('DOMContentLoaded', () => {
         getSelectedBrick: () => p5Instance?.getSelectedBrick(),
         refundTrialRunBalls: () => p5Instance?.refundTrialRunBalls(),
 
+        // New game mode methods
+        startInvasionDefend: async () => await p5Instance?.startInvasionDefend(),
+        startNextWave: async () => await p5Instance?.startNextWave(),
+        placeBrickInInvasion: (brickType) => p5Instance?.placeBrickInInvasion(brickType),
+        applyOverlayInInvasion: (overlayType, level) => p5Instance?.applyOverlayInInvasion(overlayType, level),
+        healInvasionBricks: (count) => p5Instance?.healInvasionBricks(count),
+        buffInvasionHP: (amount) => p5Instance?.buffInvasionHP(amount),
+        addEnchanters: (subtype, count) => p5Instance?.addEnchanters(subtype, count),
 
         // New methods for equipmentManager
         healBall: (amount) => p5Instance?.healBall(amount),
@@ -98,6 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeLevelImporter(gameController);
     initializeBrickLeveling(gameController);
     initializeHomeBaseContext(gameController);
+    initializeInvasionShop(gameController);
+    initializeInvasionLoot(gameController);
+    initializeSaveManager(gameController);
     
     // Initialize sound volume from the UI slider's default value
     sounds.setMasterVolume(parseFloat(dom.volumeSlider.value));

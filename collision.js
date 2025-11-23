@@ -1,3 +1,4 @@
+
 // collision.js
 
 import { Ball, MiniBall } from './ball.js';
@@ -5,6 +6,9 @@ import { calculateBallDamage } from './ball.js';
 import { sounds } from './sfx.js';
 import { BALL_STATS, BRICK_STATS } from './balancing.js';
 import * as event from './eventManager.js';
+import { FloatingText, FlyingIcon } from './vfx.js';
+import * as dom from './dom.js';
+import { renderTrialLootPanel } from './ui/invasionLoot.js';
 
 // ====================
 // 🔧 Helper functions
@@ -127,7 +131,7 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                     const hitResult = brick.hit(BALL_STATS.types.giant.baseDamage, b, board);
                     if (hitResult) {
                         event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
-                        hitEvents.push({ type: 'brick_hit', ...hitResult });
+                        hitEvents.push({ type: 'brick_hit', ...hitResult, brick: brick });
                         b.damageDealtForHpLoss += hitResult.damageDealt;
                         if (b.damageDealtForHpLoss >= 100) {
                             const hpToLose = Math.floor(b.damageDealtForHpLoss / 100);
@@ -163,7 +167,7 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                         } else {
                             event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
                         }
-                        hitEvents.push({ type: 'brick_hit', ...hitResult });
+                        hitEvents.push({ type: 'brick_hit', ...hitResult, brick: brick });
                     }
                     b.brickHitCooldowns.set(brick, 3); // Prevent multiple hits in one frame
                     continue; // Skip bouncing logic
@@ -223,7 +227,7 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                         } else {
                             event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
                         }
-                        hitEvents.push({ type: 'brick_hit', ...hitResult });
+                        hitEvents.push({ type: 'brick_hit', ...hitResult, brick: brick });
                     }
                 } else {
                     if (phaserItem && state.phaserCharges > 0 && b instanceof Ball) {
@@ -253,13 +257,46 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                         const damage = calculateBallDamage(b, combo, state) * damageMultiplier;
                         const hitResult = brick.hit(damage, b, board);
                         if (hitResult) {
+                            if (brick.retaliateDamage > 0 && b.isGhost === false) {
+                                let damageEvent = null;
+                                if (b instanceof MiniBall) {
+                                    damageEvent = { type: 'damage_taken', source: 'retaliation', ballType: b.parentType, damageAmount: brick.retaliateDamage, position: b.pos.copy() };
+                                } else if (b instanceof Ball) {
+                                    damageEvent = b.takeDamage(brick.retaliateDamage, 'retaliation');
+                                }
+                                if (damageEvent) hitEvents.push(damageEvent);
+                                sounds.spikeRetaliate();
+                                
+                                // --- METAL DROP LOGIC (Trial Run) ---
+                                if (state.gameMode === 'trialRun' && brick.overlay === 'spike') {
+                                    const runStats = p.getRunStats();
+                                    if (runStats) {
+                                        runStats.totalMetalCollected = (runStats.totalMetalCollected || 0) + 1;
+                                        p.addFloatingText('+1 🪨', p.color(192, 192, 192), { isBold: true }, b.pos);
+                                        
+                                        const endPos = dom.invasionLootPanel.getBoundingClientRect();
+                                        const canvasRect = p.canvas.getBoundingClientRect();
+                                        const targetPos = p.createVector(
+                                            endPos.left - canvasRect.left + endPos.width / 2,
+                                            endPos.top - canvasRect.top + endPos.height / 2
+                                        );
+                                        
+                                        // We can't easily add flying icons directly from here without modifying checkCollisions args significantly or using a global/shared array.
+                                        // However, the FlyingIcon class is exported from vfx.js and checkCollisions is called from sketch.js.
+                                        // sketch.js passes flyingIcons array to renderGame, but not here.
+                                        // A workaround is to dispatch an event or rely on the floating text.
+                                        // For simplicity, we'll stick to FloatingText here as visual feedback.
+                                        renderTrialLootPanel();
+                                    }
+                                }
+                            }
                             hitResult.brickOverlay = brick.overlay;
                             if (b instanceof MiniBall) {
                                 event.dispatch('MiniBallHitBrick', { miniBall: b, brick, hitResult, combo });
                             } else {
                                 event.dispatch('BallHitBrick', { ball: b, brick, hitResult, combo });
                             }
-                            hitEvents.push({ type: 'brick_hit', ...hitResult });
+                            hitEvents.push({ type: 'brick_hit', ...hitResult, brick: brick });
                         }
                         b.brickHitCooldowns.set(brick, 3);
 

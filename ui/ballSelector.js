@@ -1,7 +1,8 @@
 // ui/ballSelector.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
-import { UNLOCK_LEVELS } from '../balancing.js';
+import { UNLOCK_LEVELS, BALL_STATS } from '../balancing.js';
+import { BALL_ENCHANTMENT_DISPLAY_CONFIG } from './enchantment.js';
 
 export function updateBallSelectorArrow() {
     const activeBtn = document.querySelector('.ball-select-btn.active');
@@ -29,6 +30,43 @@ export function updateBallSelectorArrow() {
         arrowEl.style.left = `${leftPos}px`;
     }
 }
+
+export function showSimpleTooltip(element, text) {
+    if (!dom.ballTooltip || !element) return;
+    
+    // Use a simple structure for generic tooltips
+    dom.ballTooltip.innerHTML = `<div class="tooltip-description">${text}</div>`;
+    dom.ballTooltip.className = ''; // Reset any rarity classes
+
+    // Positioning logic
+    dom.ballTooltip.style.visibility = 'visible';
+    dom.ballTooltip.style.opacity = '1';
+
+    const elRect = element.getBoundingClientRect();
+    const tooltipRect = dom.ballTooltip.getBoundingClientRect();
+
+    let top = elRect.top - tooltipRect.height - 10; // Default above
+    let left = elRect.left + (elRect.width / 2) - (tooltipRect.width / 2);
+    
+    // If it's one of the top-right banks, position below instead
+    if (element === dom.gemBankEl || element === dom.foodBankEl || element === dom.woodBankEl) {
+        top = elRect.bottom + 10;
+    }
+
+    // Boundary checks
+    if (left < 5) left = 5;
+    if (left + tooltipRect.width > window.innerWidth - 5) {
+        left = window.innerWidth - tooltipRect.width - 5;
+    }
+    if (top < 5) top = 5;
+    if (top + tooltipRect.height > window.innerHeight - 5) {
+        top = elRect.top - tooltipRect.height - 10; // Try above again if below fails
+    }
+
+    dom.ballTooltip.style.top = `${top}px`;
+    dom.ballTooltip.style.left = `${left}px`;
+}
+
 
 export function showBallTooltip(ballType, element) {
     if (!dom.ballTooltip || !element) return;
@@ -62,12 +100,30 @@ export function showBallTooltip(ballType, element) {
     else if (name === 'Homing') name = 'Homing Ball';
     else if (name === 'Giant') name = 'Giant Ball';
 
+    const enchantmentData = state.ballEnchantments[ballType];
+    const baseStats = BALL_STATS.types[ballType];
+
+    let statsHTML = '';
+    if (enchantmentData && baseStats && ballType !== 'giant') {
+        const displayConfig = BALL_ENCHANTMENT_DISPLAY_CONFIG[ballType];
+        if (displayConfig) {
+            statsHTML += '<ul>';
+            displayConfig.forEach(statConf => {
+                const currentValue = statConf.getCurrent(baseStats, enchantmentData);
+                statsHTML += `<li><span>${statConf.name}:</span> <span>${statConf.format(currentValue)}</span></li>`;
+            });
+            statsHTML += '</ul>';
+        }
+    }
+
+
     dom.ballTooltip.innerHTML = `
         <div class="tooltip-header">
             <span>${name}</span>
             <div class="tooltip-icons-container">${iconsHTML}</div>
         </div>
         <div class="tooltip-description">${descriptions[ballType] || ''}</div>
+        <div class="tooltip-stats">${statsHTML}</div>
     `;
 
     // Make it visible first to measure its dimensions correctly
@@ -133,7 +189,6 @@ export function updateBallSelectorUI(mainLevel, balls, giantBalls, gameState) {
 
     // Configure individual buttons based on mode
     if (state.gameMode === 'trialRun') {
-        dom.openEquipmentBtn.classList.add('hidden');
         document.querySelectorAll('.ball-select-btn').forEach(btn => {
             const type = btn.dataset.ballType;
             const badge = btn.querySelector('.ball-count-badge');
@@ -158,7 +213,7 @@ export function updateBallSelectorUI(mainLevel, balls, giantBalls, gameState) {
             }
         });
     } else { // adventureRun
-        dom.openEquipmentBtn.classList.toggle('hidden', mainLevel < UNLOCK_LEVELS.EQUIPMENT);
+        dom.runEquipmentBtn.classList.toggle('hidden', mainLevel < UNLOCK_LEVELS.EQUIPMENT);
         document.querySelectorAll('.ball-select-btn').forEach(btn => {
             const type = btn.dataset.ballType;
             const badge = btn.querySelector('.ball-count-badge');

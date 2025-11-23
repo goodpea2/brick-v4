@@ -67,7 +67,7 @@ export function updateShopUI(gameController) {
                 if (newEquipment) {
                     state.playerEquipment.push(newEquipment);
                     sounds.equipmentGet();
-                    dom.openEquipmentBtn.classList.add('glow');
+                    dom.runEquipmentBtn.classList.add('glow');
 
                     const text = `${newEquipment.name} (${newEquipment.rarity})`;
                     let color;

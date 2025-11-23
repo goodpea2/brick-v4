@@ -1,3 +1,4 @@
+
 // brickLogic.js
 import { FlyingIcon, FloatingText } from './vfx.js';
 import * as dom from './dom.js';
@@ -7,9 +8,11 @@ import * as event from './eventManager.js';
 import { generateRandomEquipment } from './equipment.js';
 import { Ball } from './ball.js';
 import { createSplat } from './vfx.js';
-import { XP_SETTINGS } from './balancing.js';
+import { XP_SETTINGS, BRICK_STATS } from './balancing.js';
 import { Shockwave } from './vfx.js';
 import { animateWoodParticles, animateFoodParticles } from './ui/domVfx.js';
+import { renderTrialLootPanel } from './ui/invasionLoot.js';
+import { BRICK_LEVELING_DATA } from './brickLeveling.js';
 
 export function findNearestEmptyCage(producer, allBricks, board) {
     let nearestCage = null;
@@ -32,6 +35,66 @@ export function findNearestEmptyCage(producer, allBricks, board) {
         }
     }
     return nearestCage;
+}
+
+export function addGoalXp(amount, p, gameController) {
+    if (amount <= 0 || state.gameMode !== 'homeBase') return;
+    
+    state.goalBrickXp += amount;
+    
+    let leveledUp = false;
+    
+    // Loop to handle potential multiple level-ups
+    while (true) {
+        const currentLevelData = BRICK_LEVELING_DATA.goal[state.goalBrickLevel - 1];
+        // If max level reached or data missing, stop
+        if (!currentLevelData) break;
+
+        const maxXp = currentLevelData.maxXp;
+        
+        if (state.goalBrickXp >= maxXp) {
+            state.goalBrickXp -= maxXp;
+            state.goalBrickLevel++;
+            leveledUp = true;
+        } else {
+            break;
+        }
+    }
+    
+    if (leveledUp && gameController) {
+        levelUpGoalBricks(p, gameController.getBoard(), gameController.getHomeBaseBricks());
+        // Use safe access for addFloatingText in case p is not fully initialized (rare)
+        if (gameController.addFloatingText) {
+             gameController.addFloatingText("Goal Bricks Leveled Up!", p.color(255, 215, 0), { isBold: true, size: 24 });
+        }
+        sounds.levelUp();
+    }
+}
+
+export function levelUpGoalBricks(p, board, bricks) {
+    if (!bricks) return;
+    
+    const levelData = BRICK_LEVELING_DATA.goal[state.goalBrickLevel - 1];
+    if (!levelData) return;
+
+    const processed = new Set();
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && brick.type === 'goal' && !processed.has(brick)) {
+                processed.add(brick);
+                brick.level = state.goalBrickLevel;
+                brick.maxHealth = levelData.stats.maxHealth;
+                brick.health = brick.maxHealth;
+                
+                // Visual effect using the safe helper method on p5 instance
+                const pos = brick.getPixelPos(board).add(brick.size/2, brick.size/2);
+                if (p && typeof p.spawnShockwave === 'function') {
+                    p.spawnShockwave(pos.x, pos.y, brick.size * 2, p.color(255, 215, 0));
+                }
+            }
+        }
+    }
 }
 
 export function harvestResourceFromProducer(brick, { homeBaseBricks, board, p, flyingIcons, gameController }) {
@@ -261,7 +324,7 @@ export function harvestWood(brick, { homeBaseBricks, board, p, flyingIcons, game
 }
 
 export function processBrokenBricks(lastBrickHitEvent, context) {
-    const { p, board, bricks, splatBuffer, ballsInPlay, sharedBallStats, levelStats, floatingTexts, shockwaves, sounds, gameStateRef, ballsLeftRef, BRICK_STATS } = context;
+    const { p, board, bricks, splatBuffer, ballsInPlay, sharedBallStats, levelStats, floatingTexts, shockwaves, sounds, gameStateRef, ballsLeftRef, BRICK_STATS, gameController } = context;
 
     let chainReaction = true;
     while (chainReaction) {
@@ -279,14 +342,29 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
                         brickPos.y + (brick.size * brick.heightInCells) / 2
                     );
                     
-                    const orbsToSpawn = Math.floor(brick.maxHealth / XP_SETTINGS.xpPerOrb);
-                    p.spawnXpOrbs(orbsToSpawn, centerVec);
+                    // --- FUEL DROP LOGIC (Trial Run) ---
+                    if (state.gameMode === 'trialRun' && brick.overlay === 'laser') {
+                         const runStats = p.getRunStats();
+                         if (runStats) {
+                             runStats.totalFuelCollected = (runStats.totalFuelCollected || 0) + 1;
+                             if (floatingTexts) floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y, '+1 🧊', p.color(173, 216, 230), { isBold: true }));
+                             
+                             // We don't have flyingIcons array passed here in context, so skipping visual flight for now
+                             // or we'd need to add it to context.
+                             renderTrialLootPanel();
+                         }
+                    }
+                    
+                    if (state.gameMode !== 'invasionDefend') {
+                        const orbsToSpawn = Math.floor(brick.maxHealth / XP_SETTINGS.xpPerOrb);
+                        p.spawnXpOrbs(orbsToSpawn, centerVec);
+                    }
                     
                     if (brick.food > 0) {
-                        const foodAmount = brick.food;
+                        const foodAmount = brick.food; // Get remaining food
                         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
                             levelStats.foodCollected += foodAmount;
-                            state.playerFood += foodAmount;
+                            gameController.getRunStats().totalFoodCollected += foodAmount;
                         } else {
                             state.playerFood = Math.min(state.maxFood, state.playerFood + foodAmount);
                         }
@@ -322,7 +400,7 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
                             const newEquipment = generateRandomEquipment(ownedIds);
                             if (newEquipment) {
                                 state.playerEquipment.push(newEquipment);
-                                dom.openEquipmentBtn.classList.add('glow');
+                                dom.runEquipmentBtn.classList.add('glow');
                                 levelStats.equipmentsCollected++;
                                 
                                 const text = `${newEquipment.name} (${newEquipment.rarity})`;
@@ -352,7 +430,7 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
                             if (state.gameMode !== 'homeBase') {
                                 const woodAmount = 10;
                                 levelStats.woodCollected += woodAmount;
-                                state.playerWood += woodAmount;
+                                gameController.getRunStats().totalWoodCollected += woodAmount;
                                 sounds.woodCollect();
                                 floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y, `+${woodAmount} 🪵`, p.color(139, 69, 19)));
                                 const canvasRect = p.canvas.getBoundingClientRect();

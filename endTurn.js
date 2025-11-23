@@ -56,6 +56,16 @@ export function handleEndTurnEffects(context) {
     newXpCollectPitchResetTimer = 0;
     state.comboParticles = [];
 
+    // Reset Sniper charges
+    for (let c = 0; c < board.cols; c++) {
+        for (let r = 0; r < board.rows; r++) {
+            const brick = bricks[c][r];
+            if (brick && brick.overlay === 'sniper') {
+                brick.sniperCharge = 0;
+            }
+        }
+    }
+
     if (state.pendingXp > 0) {
         const totalXpToAdd = state.pendingXp;
         state.lifetimeXp += totalXpToAdd;

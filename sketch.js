@@ -1,11 +1,12 @@
+
 // sketch.js - The core p5.js game logic
 
-import { UNLOCK_LEVELS, GRID_CONSTANTS, XP_SETTINGS, AIMING_SETTINGS, INITIAL_UPGRADE_STATE, BALL_STATS, BRICK_STATS, HOME_BASE_PRODUCTION, TRIAL_RUN_LEVEL_SETTINGS } from './balancing.js';
-import { Ball, MiniBall, createBallVisuals, calculateBallDamage } from './ball.js';
+import { UNLOCK_LEVELS, GRID_CONSTANTS, XP_SETTINGS, AIMING_SETTINGS, INITIAL_UPGRADE_STATE, BALL_STATS, BRICK_STATS, HOME_BASE_PRODUCTION, TRIAL_RUN_LEVEL_SETTINGS, NPC_BALL_STATS, INVASION_MODE_PARAMS, ENCHANTER_STATS, INVASION_SHOP_ITEMS } from './balancing.js';
+import { Ball, MiniBall, createBallVisuals, calculateBallDamage, Projectile, SniperProjectile } from './ball.js';
 import { Brick } from './brick.js';
 import { generateLevel } from './levelgen.js';
 import { sounds } from './sfx.js';
-import { Particle, Shockwave, FloatingText, PowerupVFX, StripeFlash, createSplat, createBrickHitVFX, createBallDeathVFX, XpOrb, LeechHealVFX, ZapperSparkle, FlyingIcon } from './vfx.js';
+import { Particle, Shockwave, FloatingText, PowerupVFX, StripeFlash, createSplat, createBrickHitVFX, createBallDeathVFX, XpOrb, LeechHealVFX, ZapperSparkle, FlyingIcon, ChainVFX, EnchanterOrb } from './vfx.js';
 import * as ui from './ui/index.js';
 import { processComboRewards, handleCombo } from './combo.js';
 import { getOverlayActions, executeHealAction, executeBuildAction, processInstantOverlayEffects } from './brickOverlay.js';
@@ -22,12 +23,43 @@ import { importLevelFromString } from './levelImporter.js';
 import { MILESTONE_LEVELS } from './firstTimeLevels.js';
 import { handleFarmlandGeneration, canFarmlandProduce } from './farmland.js';
 import { handleSawmillGeneration, canSawmillProduce } from './sawmill.js';
-import { BRICK_LEVELING_DATA } from './brickLeveling.js';
+import { BRICK_LEVELING_DATA, OVERLAY_LEVELING_DATA } from './brickLeveling.js';
 import { harvestResourceFromProducer, harvestFood, harvestWood, processBrokenBricks, findNearestEmptyCage } from './brickLogic.js';
 import { explode, clearStripe } from './explosionLogic.js';
 import { spawnHomingProjectile, spawnWallBullets } from './spawnProjectile.js';
 import { handleEndTurnEffects } from './endTurn.js';
 import { handleBrickSpawnPowerup } from './spawnBrick.js';
+import { NPCBall } from './npcBall.js';
+import { generateMysteryShopItems } from './ui/invasionShop.js';
+
+let particles = [], shockwaves = [], floatingTexts = [], powerupVFXs = [], stripeFlashes = [], leechHealVFXs = [], zapperSparkles = [], chainVFXs = [], lasers = [], vanishingLasers = [], enchanterOrbs = [];
+let invasionSpawningQueue = [];
+let npcSpawnTimer = 0;
+
+function updateVFX() {
+    [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles, chainVFXs].forEach(vfxArray => {
+        for (let i = vfxArray.length - 1; i >= 0; i--) {
+            const vfx = vfxArray[i];
+            if (!vfx) {
+                vfxArray.splice(i, 1);
+                continue;
+            }
+            vfx.update();
+            if (vfx.isFinished()) {
+                vfxArray.splice(i, 1);
+            }
+        }
+    });
+    
+    // Update vanishing laser timers
+    for (let i = vanishingLasers.length - 1; i >= 0; i--) {
+        const laser = vanishingLasers[i];
+        laser.vanishTimer--;
+        if (laser.vanishTimer <= 0) {
+            vanishingLasers.splice(i, 1);
+        }
+    }
+}
 
 export const sketch = (p, state, callbacks) => {
     // Game state variables
@@ -41,10 +73,11 @@ export const sketch = (p, state, callbacks) => {
     let miniBalls = [];
     let projectiles = [];
     let ghostBalls = [];
+    let npcBalls = [];
     let ballsLeft = 5, level = 1, coins = 0, giantBallCount = 0;
     let combo = 0, maxComboThisTurn = 0, runMaxCombo = 0;
     let isGiantBallTurn = false;
-    let gameState = 'aiming'; // aiming, playing, levelClearing, levelComplete, gameOver, endTurnSequence
+    let gameState = 'loading'; // Start in loading/generating state
     let equipmentBrickSpawnedThisLevel = false;
     let currentSeed;
     let levelHpPool = 0, levelCoinPool = 0, levelHpPoolSpent = 0, levelGemPool = 0;
@@ -70,7 +103,6 @@ export const sketch = (p, state, callbacks) => {
     p.isModalOpen = false;
 
     // VFX & SFX
-    let particles = [], shockwaves = [], floatingTexts = [], powerupVFXs = [], stripeFlashes = [], leechHealVFXs = [], zapperSparkles = [];
     let shakeDuration = 0, shakeAmount = 0;
     let splatBuffer;
     let levelCompleteSoundPlayed = false, gameOverSoundPlayed = false;
@@ -89,7 +121,93 @@ export const sketch = (p, state, callbacks) => {
     let endTurnActionTimer = 0;
     let zapperAuraTimer = 0;
 
-    function updateHomeBaseTimers() {
+    function addXp(amount) {
+        if (state.gameMode === 'invasionDefend' && runStats) {
+            if (runStats.totalXpCollected !== undefined) runStats.totalXpCollected += amount;
+        } else if (levelStats) {
+            if (levelStats.xpCollected !== undefined) levelStats.xpCollected += amount;
+        }
+        
+        state.currentXp += amount;
+        state.lifetimeXp += amount;
+        
+        while (state.currentXp >= state.xpForNextLevel) {
+            state.currentXp -= state.xpForNextLevel;
+            const oldLevel = state.mainLevel;
+            state.mainLevel++;
+            const newLevel = state.mainLevel;
+            state.xpForNextLevel = XP_SETTINGS.xpBaseAmount * state.mainLevel * (state.mainLevel + 1) / 2;
+            sounds.levelUp();
+            ui.showLevelUpModal(state.mainLevel);
+
+            // Rewards
+            if (newLevel >= 19) {
+                state.playerGems += 10;
+                state.lifetimeGems += 10;
+            }
+        }
+    }
+
+
+    function handleChainDamage(sourceBall, sourceBrick) {
+        if (!sourceBall || !sourceBrick || sourceBall.type !== 'classic' || !(sourceBall.bonusChainDamage > 0)) {
+            return [];
+        }
+        
+        const chainDamage = sourceBall.bonusChainDamage;
+        const allBricks = [];
+        const processed = new Set();
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = bricks[c][r];
+                if (brick && brick !== sourceBrick && !processed.has(brick)) {
+                    allBricks.push(brick);
+                    processed.add(brick);
+                }
+            }
+        }
+        const sourcePos = sourceBrick.getPixelPos(board).add(sourceBrick.size / 2, sourceBrick.size / 2);
+        allBricks.sort((a, b) => {
+            const aPos = a.getPixelPos(board);
+            const bPos = b.getPixelPos(board);
+            const distA = p.dist(sourcePos.x, sourcePos.y, aPos.x, aPos.y);
+            const distB = p.dist(sourcePos.x, sourcePos.y, bPos.x, bPos.y);
+            return distA - distB;
+        });
+    
+        const targets = allBricks.slice(0, 3);
+        const hitEvents = [];
+        targets.forEach(targetBrick => {
+            const hitResult = targetBrick.hit(chainDamage, 'chain_damage', board);
+            if (hitResult) {
+                hitEvents.push({ type: 'brick_hit', ...hitResult, source: 'chain_damage' });
+                const targetPos = targetBrick.getPixelPos(board).add(targetBrick.size / 2, targetBrick.size / 2);
+                chainVFXs.push(new ChainVFX(p, sourcePos, targetPos));
+            }
+        });
+        return hitEvents;
+    }
+
+    function determineEnchanterDrop(npc) {
+        if (state.mainLevel < UNLOCK_LEVELS.ENCHANTMENT) return null;
+
+        if (npc.guaranteedEnchanterDrop) {
+            return npc.guaranteedEnchanterDrop;
+        }
+        const stats = NPC_BALL_STATS[npc.type];
+        if (!stats) return null;
+        const dropRoll = p.random();
+        if (dropRoll < stats.cost * INVASION_MODE_PARAMS.ENCHANTER_DROP_RATE_PER_COST) {
+            if (p.random() < INVASION_MODE_PARAMS.ENCHANTER_II_UPGRADE_CHANCE) {
+                return 'enchanter2';
+            } else {
+                return 'enchanter1';
+            }
+        }
+        return null;
+    }
+
+    function updateHomeBaseTimers(timeMultiplier = 1) {
         // Per-frame resource accumulation & production timers
         const processedBricks = new Set();
         for (let c = 0; c < board.cols; c++) {
@@ -98,7 +216,7 @@ export const sketch = (p, state, callbacks) => {
                 if (brick && !processedBricks.has(brick)) {
                     processedBricks.add(brick);
                     if ((brick.type === 'Farmland' || brick.type === 'Sawmill') && brick.productionRate > 0) {
-                        brick.internalResourcePool += brick.productionRate / 3600;
+                        brick.internalResourcePool += (brick.productionRate / 3600) * timeMultiplier;
                     }
 
                     if (brick.type === 'BallProducer') {
@@ -135,7 +253,7 @@ export const sketch = (p, state, callbacks) => {
                         } 
                         // 2. If not blocked, continue production
                         else if (brick.production.queueCount > 0 && !brick.heldBall) {
-                            brick.production.progress++;
+                            brick.production.progress += 1 * timeMultiplier;
                         }
                     
                         // 3. Real-time UI update
@@ -152,7 +270,7 @@ export const sketch = (p, state, callbacks) => {
         }
         
         if (farmlandCanProduce) {
-            farmlandTimer++;
+            farmlandTimer += 1 * timeMultiplier;
             if (farmlandTimer >= 360) { // 6 seconds
                 farmlandTimer = 0;
                 handleFarmlandGeneration(p, homeBaseBricks, board, flyingIcons, state.gameMode === 'homeBase');
@@ -164,7 +282,7 @@ export const sketch = (p, state, callbacks) => {
         }
         
         if (sawmillCanProduce) {
-            sawmillTimer++;
+            sawmillTimer += 1 * timeMultiplier;
             if (sawmillTimer >= 3600) { // 60 seconds
                 sawmillTimer = 0;
                 handleSawmillGeneration(p, homeBaseBricks, board);
@@ -182,6 +300,47 @@ export const sketch = (p, state, callbacks) => {
                 flyingIcons.splice(i, 1);
             }
         }
+    }
+
+    function fireLasers() {
+        // Move existing lasers to a vanishing list. Each gets a 20-frame timer.
+        vanishingLasers.push(...lasers.map(l => ({ ...l, vanishTimer: 20 })));
+
+        // VFX for vanishing old lasers - create a particle burst
+        lasers.forEach(laser => {
+            const numParticles = 30;
+            const laserVector = p.constructor.Vector.sub(laser.end, laser.start);
+            const visibleLength = p.max(board.width, board.height) * 1.5;
+            const visibleEnd = p.constructor.Vector.add(laser.start, laserVector.copy().setMag(visibleLength));
+
+            for (let i = 0; i < numParticles; i++) {
+                const posOnLaser = p.constructor.Vector.lerp(laser.start, visibleEnd, p.random());
+                if (posOnLaser.x > board.x && posOnLaser.x < board.x + board.width && posOnLaser.y > board.y && posOnLaser.y < board.y + board.height) {
+                    const perp = laserVector.copy().rotate(p.HALF_PI).normalize();
+                    const vel = perp.mult(p.random(-5, 5));
+                    particles.push(new Particle(p, posOnLaser.x, posOnLaser.y, p.color(255, 80, 200), 1, { vel, size: p.random(2, 5), lifespan: 30 }));
+                }
+            }
+        });
+
+        // Clear current lasers to make way for new ones
+        lasers = [];
+        const uniqueBricks = new Set();
+        for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) if (bricks[c][r]) uniqueBricks.add(bricks[c][r]);
+    
+        // Create new lasers for the new turn
+        uniqueBricks.forEach(brick => {
+            if (brick.overlay === 'laser') {
+                sounds.laserFire();
+                const start = brick.getPixelPos(board).add(brick.size / 2, brick.size / 2);
+                const angle = p.random(p.TWO_PI);
+                const end = p.createVector(
+                    start.x + p.cos(angle) * 2000, // a very large number
+                    start.y + p.sin(angle) * 2000
+                );
+                lasers.push({ start, end, angle, brick });
+            }
+        });
     }
 
     p.setup = () => {
@@ -233,29 +392,61 @@ export const sketch = (p, state, callbacks) => {
         });
 
         homeBaseBricks = createEmptyBrickMatrix();
-        p.enterHomeBase();
+        
+        if (state.mainLevel < UNLOCK_LEVELS.HOME_BASE) {
+            // Before level 13, player is stuck in Adventure Run loop
+            p.resetGame(ui.getLevelSettings(), 1);
+        } else {
+            p.enterHomeBase();
+        }
     };
 
     p.draw = () => {
-        updateHomeBaseTimers();
+        // If game state is loading, just render background
+        if (gameState === 'loading') {
+            p.background(40, 45, 55);
+            p.fill(255);
+            p.textAlign(p.CENTER, p.CENTER);
+            p.textSize(24);
+            p.text("Loading...", p.width/2, p.height/2);
+            return;
+        }
 
         if (state.isEditorMode) {
             const renderContext = {
                 gameState, board, splatBuffer, shakeAmount: 0, isAiming: false, ballsInPlay: [], endAimPos: null,
-                bricks, ghostBalls: [], miniBalls: [], projectiles: [], xpOrbs: [],
-                particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
-                combo, sharedBallStats, flyingIcons, draggedBrick
+                bricks, ghostBalls: [], miniBalls: [], projectiles: [], xpOrbs: [], enchanterOrbs: [], lasers: [], vanishingLasers,
+                particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles, chainVFXs,
+                combo, sharedBallStats, selectedBrick, flyingIcons, draggedBrick, npcBalls
             };
             levelEditor.draw(p, renderContext);
             return;
         }
         
-        if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
+        if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun' || state.gameMode === 'invasionDefend') {
             const timeMultiplier = state.isSpedUp ? 2 : 1;
             for (let i = 0; i < timeMultiplier; i++) {
                 gameLoop(i === timeMultiplier - 1);
             }
         } else { // homeBase
+            let timeMultiplier = 1;
+            const speedBtn = dom.cheatSpeedUpBtn;
+
+            if (state.homeBaseTimeMultiplier > 1 && Date.now() < state.homeBaseTimeMultiplierEnd) {
+                timeMultiplier = state.homeBaseTimeMultiplier;
+                const secondsLeft = ((state.homeBaseTimeMultiplierEnd - Date.now()) / 1000).toFixed(1);
+                if (speedBtn) speedBtn.textContent = `x${timeMultiplier} Speed (${secondsLeft}s)`;
+            } else if (state.homeBaseTimeMultiplier > 1) { // Expired
+                state.homeBaseTimeMultiplier = 1;
+                state.homeBaseTimeMultiplierEnd = 0;
+                if(speedBtn) {
+                    speedBtn.textContent = 'x20 Speed (3s)';
+                    speedBtn.disabled = false;
+                }
+            }
+
+            updateHomeBaseTimers(timeMultiplier);
+            updateVFX();
              // Simple render loop for home base
             const producerTimers = {};
             const processedBricks = new Set();
@@ -276,17 +467,17 @@ export const sketch = (p, state, callbacks) => {
             }
 
             const renderContext = {
-                gameState: 'homeBase', board, splatBuffer, shakeAmount: 0, isAiming: false, ballsInPlay: [], endAimPos: null, 
-                bricks, ghostBalls: [], miniBalls: [], projectiles: [], xpOrbs: [],
-                particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
-                combo: 0, sharedBallStats: {}, selectedBrick, flyingIcons, draggedBrick
+                gameState: 'homeBase', board, splatBuffer, shakeAmount: 0, isAiming: false, ballsInPlay: [], endAimPos: null,
+                bricks, ghostBalls: [], miniBalls: [], projectiles: [], xpOrbs: [], enchanterOrbs: [], lasers: [], vanishingLasers,
+                particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles, chainVFXs,
+                combo: 0, sharedBallStats: {}, selectedBrick, flyingIcons, draggedBrick, npcBalls
             };
             renderGame(p, renderContext, { 
                 farmland: { canProduce: farmlandCanProduce, timer: farmlandTimer, maxTimer: 360 },
                 sawmill: { canProduce: sawmillCanProduce, timer: sawmillTimer, maxTimer: 3600 },
                 producer: producerTimers,
             });
-            ui.updateHeaderUI(0, state.mainLevel, 0, 0, 'HOME', 0, state.playerGems, state.playerFood, state.playerWood, 'homeBase', null, runStats, state.playerEquipment.length);
+            ui.updateHeaderUI(0, state.mainLevel, 0, 0, 'HOME', 0, state.playerGems, state.playerFood, state.playerWood, 'homeBase', null, runStats, state.playerEquipment.length, [], [], null, 0, 0, 0, state.playerEnchanters);
         }
     };
     
@@ -296,20 +487,27 @@ export const sketch = (p, state, callbacks) => {
     }
     
     function gameLoop(shouldRender) {
-        // --- END TURN LOGIC ---
-        if ((gameState === 'playing' || gameState === 'levelClearing') && ballsInPlay.length === 0 && miniBalls.length === 0 && projectiles.length === 0 && delayedActionsQueue.length === 0) {
-            const context = { p, board, bricks, level, maxComboThisTurn, floatingTexts, levelStats, gameState, ballsLeft, giantBallCount };
-            const result = handleEndTurnEffects(context);
-            gameState = result.gameState;
-            giantBallCount = result.giantBallCount;
-            combo = result.combo;
-            maxComboThisTurn = result.maxComboThisTurn;
-            orbsCollectedThisTurn = result.orbsCollectedThisTurn;
-            xpCollectPitchResetTimer = result.xpCollectPitchResetTimer;
-            endTurnActions = result.endTurnActions;
-            endTurnActionTimer = result.endTurnActionTimer;
-            isGiantBallTurn = result.isGiantBallTurn;
-            ballsLeft = result.ballsLeft;
+        // --- END TURN LOGIC (for player modes) ---
+        if (state.gameMode !== 'invasionDefend') {
+            if ((gameState === 'playing' || gameState === 'levelClearing') && ballsInPlay.length === 0 && miniBalls.length === 0 && projectiles.length === 0 && delayedActionsQueue.length === 0) {
+                const oldGameState = gameState;
+                const context = { p, board, bricks, level, maxComboThisTurn, floatingTexts, levelStats, gameState, ballsLeft, giantBallCount };
+                const result = handleEndTurnEffects(context);
+                gameState = result.gameState;
+                giantBallCount = result.giantBallCount;
+                combo = result.combo;
+                maxComboThisTurn = result.maxComboThisTurn;
+                orbsCollectedThisTurn = result.orbsCollectedThisTurn;
+                xpCollectPitchResetTimer = result.xpCollectPitchResetTimer;
+                endTurnActions = result.endTurnActions;
+                endTurnActionTimer = result.endTurnActionTimer;
+                isGiantBallTurn = result.isGiantBallTurn;
+                ballsLeft = result.ballsLeft;
+    
+                if (gameState === 'aiming' && oldGameState !== 'aiming') {
+                    fireLasers();
+                }
+            }
         }
 
         // --- END TURN SEQUENCE ---
@@ -327,6 +525,7 @@ export const sketch = (p, state, callbacks) => {
                     endTurnActionTimer = 2; // Reset for next action
                 }
                 if (endTurnActions.length === 0) {
+                    const oldGameState = gameState;
                     // Sequence finished. Now, make the final decision on the next game state.
                     let goalBricksLeft = 0;
                     for (let c = 0; c < board.cols; c++) {
@@ -343,6 +542,10 @@ export const sketch = (p, state, callbacks) => {
                         gameState = 'aiming';
                     }
                     
+                    if (gameState === 'aiming' && oldGameState !== 'aiming') {
+                        fireLasers();
+                    }
+
                     // Reset and re-roll for Golden Turn for the *next* turn
                     if (state.skillTreeState['unlock_golden_shot']) {
                         state.isGoldenTurn = p.random() < 0.1;
@@ -361,7 +564,7 @@ export const sketch = (p, state, callbacks) => {
                 if (action.type === 'damage' && action.brick) {
                     const hitResult = action.brick.hit(action.damage, action.source, board);
                     if (hitResult) {
-                        processEvents([{ type: 'brick_hit', ...hitResult, source: action.source }]);
+                        processEvents([{ type: 'brick_hit', ...hitResult, source: action.source, brick: action.brick }]);
                     }
                 }
                 delayedActionsQueue.splice(i, 1);
@@ -383,7 +586,7 @@ export const sketch = (p, state, callbacks) => {
             });
             debugStats = { currentHp, hpPool: levelHpPool, currentCoins, coinPool: levelCoinPool, totalMaxHp, totalMaxCoins, hpPoolSpent: levelHpPoolSpent };
         }
-        ui.updateHeaderUI(level, state.mainLevel, ballsLeft, giantBallCount, currentSeed, coins, state.playerGems, state.playerFood, state.playerWood, gameState, debugStats, runStats, state.playerEquipment.length, ballsInPlay, miniBalls, (ball, combo) => calculateBallDamage(ball, combo, state), combo);
+        ui.updateHeaderUI(level, state.mainLevel, ballsLeft, giantBallCount, currentSeed, coins, state.playerGems, state.playerFood, state.playerWood, gameState, debugStats, runStats, state.playerEquipment.length, ballsInPlay, miniBalls, (ball, combo) => calculateBallDamage(ball, combo, state), combo, npcBalls.length, state.invasionWave, state.playerEnchanters);
         
         if (xpCollectPitchResetTimer > 0) {
             xpCollectPitchResetTimer -= 1;
@@ -418,7 +621,7 @@ export const sketch = (p, state, callbacks) => {
             }
         }
 
-        if (gameState === 'aiming' && ballsInPlay.length === 0) {
+        if (gameState === 'aiming' && ballsInPlay.length === 0 && state.gameMode !== 'invasionDefend') {
             let canUseAnyBall = false;
             
             if (state.gameMode === 'trialRun') {
@@ -445,7 +648,7 @@ export const sketch = (p, state, callbacks) => {
                 if (!canUseRegular && canUseGiant && state.selectedBallType !== 'giant') {
                     state.selectedBallType = 'giant';
                     document.querySelector('.ball-select-btn.active')?.classList.remove('active');
-                    const giantBtn = document.querySelector('.ball-select-btn[data-ball-type="giant"]');
+                    const giantBtn = document.querySelector(`.ball-select-btn[data-ball-type="giant"]`);
                     if (giantBtn) giantBtn.classList.add('active');
                     ui.updateBallSelectorArrow();
                 }
@@ -500,6 +703,7 @@ export const sketch = (p, state, callbacks) => {
                     maxUses: newBall.powerUpMaxUses,
                     flashTime: 0
                 };
+                p.setBallSpeedMultiplier(state.originalBallSpeed);
             }
         }
         
@@ -532,9 +736,6 @@ export const sketch = (p, state, callbacks) => {
                 }
             }
         }
-
-        zapperSparkles.forEach(s => s.update());
-        zapperSparkles = zapperSparkles.filter(s => !s.isFinished());
 
         if (zapperBrick && zapBatteries.length > 0 && (gameState === 'playing' || gameState === 'levelClearing')) {
             zapperAuraTimer++;
@@ -603,7 +804,7 @@ export const sketch = (p, state, callbacks) => {
                                     hitBricks.add(brick);
                                     const hitResult = brick.hit(auraDamage, 'zap_aura', board);
                                     if (hitResult) {
-                                        hitEvents.push({ type: 'brick_hit', ...hitResult, source: 'zap_aura' });
+                                        hitEvents.push({ type: 'brick_hit', ...hitResult, source: 'zap_aura', brick });
                                     }
                                 }
                             }
@@ -614,6 +815,151 @@ export const sketch = (p, state, callbacks) => {
             }
         }
         
+        // --- Sniper Logic ---
+        if ((gameState === 'playing' || gameState === 'levelClearing') || (state.gameMode === 'invasionDefend' && gameState === 'aiming')) {
+            const uniqueBricks = new Set();
+            for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) if (bricks[c][r]) uniqueBricks.add(bricks[c][r]);
+
+            uniqueBricks.forEach(brick => {
+                if (brick.overlay === 'sniper') {
+                    // Passive charge during active play
+                    if (gameState === 'playing' || gameState === 'levelClearing') {
+                        if (brick.sniperCharge < BRICK_STATS.sniper.cooldownFrames) {
+                            brick.sniperCharge += (state.gameMode === 'invasionDefend' ? 2 : 1);
+                        }
+                    }
+                    
+                    let currentTarget = null;
+                    if (state.gameMode === 'invasionDefend') {
+                        if (npcBalls.length > 0) { // <--- THIS IS THE FIRING LOGIC
+                            let nearestNpc = null;
+                            let minNpcDistSq = Infinity;
+                            const brickPos = brick.getPixelPos(board).add(brick.size/2, brick.size/2);
+
+                            npcBalls.forEach(npc => {
+                                const dSq = p.constructor.Vector.sub(brickPos, npc.pos).magSq();
+                                if (dSq < minNpcDistSq) {
+                                    minNpcDistSq = dSq;
+                                    nearestNpc = npc;
+                                }
+                            });
+                            currentTarget = nearestNpc;
+                        }
+                    } else {
+                         currentTarget = ballsInPlay.length > 0 ? ballsInPlay[0] : null; 
+                    }
+
+                    // Firing condition
+                    if (currentTarget && brick.sniperCharge >= BRICK_STATS.sniper.cooldownFrames) {
+                        const brickPos = brick.getPixelPos(board).add(brick.size/2, brick.size/2);
+                        const dist = p.dist(brickPos.x, brickPos.y, currentTarget.pos.x, currentTarget.pos.y);
+                        const range = BRICK_STATS.sniper.rangeTiles * board.gridUnitSize;
+
+                        if (dist <= range) {
+                            brick.sniperCharge = 0;
+                            const vel = p.constructor.Vector.sub(currentTarget.pos, brickPos).normalize().mult(board.gridUnitSize * 1.5);
+                            projectiles.push(new SniperProjectile(p, brickPos, vel, BRICK_STATS.sniper.damage, { piercesBricks: true }));
+                            sounds.sniperFire();
+                            
+                            const muzzleFlashColor = p.color(255, 100, 100);
+                            for (let i = 0; i < 20; i++) {
+                                const angle = vel.heading() + p.random(-p.QUARTER_PI, p.QUARTER_PI);
+                                const v = p.constructor.Vector.fromAngle(angle).mult(p.random(3, 8));
+                                particles.push(new Particle(p, brickPos.x, brickPos.y, muzzleFlashColor, 1, { vel: v, size: p.random(2, 6), lifespan: 20 }));
+                            }
+                            shockwaves.push(new Shockwave(p, brickPos.x, brickPos.y, 20, muzzleFlashColor, 5));
+                        }
+                    }
+                }
+            });
+        }
+    
+        // --- Laser Collision ---
+        if (lasers.length > 0) {
+            const targets = [];
+            if (ballsInPlay.length > 0) targets.push(ballsInPlay[0]);
+            if (state.gameMode === 'invasionDefend') targets.push(...npcBalls);
+
+            if (targets.length > 0) {
+                for (let i = lasers.length - 1; i >= 0; i--) {
+                    const laser = lasers[i];
+                    let laserHit = false;
+
+                    for (const ball of targets) {
+                        // Line-circle intersection check
+                        const p1 = laser.start;
+                        const p2 = laser.end;
+                        const center = ball.pos;
+                        const r = ball.radius;
+            
+                        const d = p.constructor.Vector.sub(p2, p1);
+                        const f = p.constructor.Vector.sub(p1, center);
+            
+                        const a = d.dot(d);
+                        const b = 2 * f.dot(d);
+                        const c = f.dot(f) - r * r;
+            
+                        let discriminant = b * b - 4 * a * c;
+                        if (discriminant >= 0) {
+                            discriminant = Math.sqrt(discriminant);
+                            const t1 = (-b - discriminant) / (2 * a);
+                            const t2 = (-b + discriminant) / (2 * a);
+            
+                            if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1)) {
+                                // Determine damage
+                                let damage = BRICK_STATS.laser.damage;
+                                if (laser.brick && laser.brick.overlayId) {
+                                    const overlayItem = state.overlayInventory.find(o => o.id === laser.brick.overlayId);
+                                    if (overlayItem) {
+                                        const levelIdx = overlayItem.level - 1;
+                                        const data = OVERLAY_LEVELING_DATA.laser[levelIdx];
+                                        if (data && data.stats && data.stats.damage) {
+                                            damage = data.stats.damage;
+                                        }
+                                    }
+                                }
+
+                                // Apply Damage
+                                if (ball instanceof NPCBall) {
+                                     const events = ball.takeDamage(damage);
+                                     processEvents(events);
+                                } else {
+                                     const damageEvent = ball.takeDamage(damage, 'laser');
+                                     if(damageEvent) processEvents([damageEvent]);
+                                }
+                                
+                                // VFX for laser hit
+                                for (let j = 0; j < 20; j++) {
+                                    particles.push(new Particle(p, ball.pos.x, ball.pos.y, p.color(255, 80, 200), 4, {lifespan: 40}));
+                                }
+                                sounds.zap();
+            
+                                lasers.splice(i, 1); // Remove laser
+                                laserHit = true;
+                                break; // Laser consumed
+                            }
+                        }
+                    }
+                    if (laserHit) continue;
+                }
+            }
+        }
+
+        // Vanishing Laser beams VFX
+        if (vanishingLasers && vanishingLasers.length > 0) {
+            vanishingLasers.forEach(laser => {
+                const progress = 1 - (laser.vanishTimer / 20); // 20 is the initial timer
+                const width = p.map(progress, 0, 1, 3, 20);
+                const alpha = p.map(progress, 0, 1, 200, 0);
+                
+                p.push();
+                p.strokeWeight(width);
+                p.stroke(255, 80, 200, alpha);
+                p.line(laser.start.x, laser.start.y, laser.end.x, laser.end.y);
+                p.pop();
+            });
+        }
+
         if ((gameState === 'playing' || gameState === 'levelClearing') && ballsInPlay.length > 0) {
             for (let i = ballsInPlay.length - 1; i >= 0; i--) {
                 const ball = ballsInPlay[i];
@@ -624,6 +970,66 @@ export const sketch = (p, state, callbacks) => {
                 }
             }
         }
+
+        // --- NPC Ball Logic ---
+        if (state.gameMode === 'invasionDefend' && (gameState === 'playing' || gameState === 'levelClearing')) {
+            // --- Spawning Logic ---
+            if (invasionSpawningQueue.length > 0) {
+                npcSpawnTimer--;
+                if (npcSpawnTimer <= 0) {
+                    const npcData = invasionSpawningQueue.shift();
+                    npcBalls.push(new NPCBall(p, npcData.pos, npcData.vel, npcData.type, board.gridUnitSize, npcData.target, npcData.guaranteedEnchanterDrop));
+                    npcSpawnTimer = 10; // 10-frame delay
+                }
+            }
+
+            // --- Update Logic ---
+            for (let i = npcBalls.length - 1; i >= 0; i--) {
+                const npc = npcBalls[i];
+                npc.update(board, bricks, (events) => processEvents(events));
+                if (npc.isDead) {
+                    const orbsToSpawn = Math.floor(npc.maxHp / 10);
+                    
+                    const spawnPos = npc.pos.copy();
+                    const orbRadius = 4; // from XpOrb constructor
+                    const right = board.x + board.width - board.border/2 - orbRadius;
+                    const bottom = board.y + board.height - board.border/2 - orbRadius;
+                    const left = board.x + board.border/2 + orbRadius;
+                    const top = board.y + board.border/2 + orbRadius;
+                    spawnPos.x = p.constrain(spawnPos.x, left, right);
+                    spawnPos.y = p.constrain(spawnPos.y, top, bottom);
+
+                    p.spawnXpOrbs(orbsToSpawn, spawnPos);
+
+                    // --- NEW ENCHANTER DROP LOGIC ---
+                    const enchanterToDrop = determineEnchanterDrop(npc);
+                    if (enchanterToDrop) {
+                        const enchanterSpawnPos = spawnPos.copy();
+                        enchanterSpawnPos.x = p.constrain(enchanterSpawnPos.x, left + 2, right - 2);
+                        enchanterSpawnPos.y = p.constrain(enchanterSpawnPos.y, top + 2, bottom - 2);
+                        enchanterOrbs.push(new EnchanterOrb(p, enchanterSpawnPos.x, enchanterSpawnPos.y, enchanterToDrop));
+                    }
+                    // --- END ---
+
+                    createSplat(p, splatBuffer, npc.pos.x, npc.pos.y, npc.color, board.gridUnitSize);
+                    npcBalls.splice(i, 1);
+                    sounds.brickBreak();
+                }
+            }
+            
+            // Check for wave end
+            if (invasionSpawningQueue.length === 0 && npcBalls.length === 0 && (gameState === 'playing' || gameState === 'levelClearing')) {
+                gameState = 'aiming'; // Use aiming state to pause between waves
+                
+                // Generate Shop Items for next wave
+                runStats.mysteryShopItems = generateMysteryShopItems(runStats.invasionRunCoins || 0);
+
+                dom.startNextWaveBtn.classList.remove('hidden');
+                dom.invasionShopUI.classList.remove('hidden');
+                ui.renderInvasionShopUI();
+            }
+        }
+
 
         for (let i = ghostBalls.length - 1; i >= 0; i--) {
             const gb = ghostBalls[i];
@@ -650,6 +1056,74 @@ export const sketch = (p, state, callbacks) => {
                 continue;
             }
             const projEvent = proj.update(board, bricks);
+            
+            // Sniper projectile vs. ball/npc collision
+            if (proj.piercesBricks && proj instanceof SniperProjectile) {
+                if (state.gameMode === 'invasionDefend') {
+                    for (const npc of npcBalls) {
+                        const prevPos = p.constructor.Vector.sub(proj.pos, proj.vel);
+                        const currPos = proj.pos;
+                        const npcPos = npc.pos;
+                        const npcRadius = npc.radius;
+        
+                        const l2 = p.constructor.Vector.sub(currPos, prevPos).magSq();
+                        if (l2 === 0) {
+                             if (p.constructor.Vector.sub(npcPos, currPos).magSq() < npcRadius * npcRadius) {
+                                // collision
+                                proj.isDead = true;
+                             }
+                        } else {
+                            let t = p.constructor.Vector.sub(npcPos, prevPos).dot(p.constructor.Vector.sub(currPos, prevPos)) / l2;
+                            t = p.constrain(t, 0, 1);
+                            const closestPoint = p.constructor.Vector.lerp(prevPos, currPos, t);
+        
+                            if (p.constructor.Vector.sub(npcPos, closestPoint).magSq() < npcRadius * npcRadius) {
+                                processEvents(npc.takeDamage(proj.damage));
+                                proj.isDead = true;
+                            }
+                        }
+        
+                        if (proj.isDead) {
+                            sounds.spikeRetaliate();
+                            for (let j = 0; j < 20; j++) {
+                                particles.push(new Particle(p, npc.pos.x, npc.pos.y, p.color(255, 40, 40), 4, { lifespan: 40 }));
+                            }
+                            break; 
+                        }
+                    }
+                } else {
+                    for (const ball of ballsInPlay) {
+                        if (p.dist(proj.pos.x, proj.pos.y, ball.pos.x, ball.pos.y) < proj.radius + ball.radius) {
+                            const damageEvent = ball.takeDamage(proj.damage, 'sniper');
+                            if (damageEvent) processEvents([damageEvent]);
+                            
+                            proj.isDead = true;
+                            sounds.zap();
+                            
+                            for (let j = 0; j < 20; j++) {
+                                particles.push(new Particle(p, proj.pos.x, proj.pos.y, p.color(255, 0, 0), 4, {lifespan: 40}));
+                            }
+                            
+                            // --- WIRE DROP LOGIC (Trial Run) ---
+                            if (state.gameMode === 'trialRun') {
+                                runStats.totalWireCollected = (runStats.totalWireCollected || 0) + 1;
+                                floatingTexts.push(new FloatingText(p, proj.pos.x, proj.pos.y, '+1 🪢', p.color(255, 140, 0), { isBold: true }));
+                                const endPos = dom.invasionLootPanel.getBoundingClientRect(); // Using generic loot panel for visual target
+                                const canvasRect = p.canvas.getBoundingClientRect();
+                                const targetPos = p.createVector(
+                                    endPos.left - canvasRect.left + endPos.width / 2,
+                                    endPos.top - canvasRect.top + endPos.height / 2
+                                );
+                                flyingIcons.push(new FlyingIcon(p, proj.pos.copy(), targetPos, '🪢', { size: 16, lifespan: 40 }));
+                                ui.renderInvasionLootPanel(); // Re-render panel
+                            }
+
+                            break; 
+                        }
+                    }
+                }
+            }
+
             if (projEvent) {
                 if (projEvent.type === 'homing_explode') {
                     p.explode(projEvent.pos, projEvent.radius, projEvent.damage, 'homing_explode');
@@ -677,7 +1151,18 @@ export const sketch = (p, state, callbacks) => {
          if (sharedBallStats.flashTime > 0) sharedBallStats.flashTime--;
 
         // --- XP Orb Logic ---
-        const attractors = (gameState !== 'aiming') ? [...ballsInPlay, ...miniBalls] : [];
+        let attractors = [];
+        if (state.gameMode === 'invasionDefend') {
+            if (p.mouseIsPressed) {
+                attractors.push({
+                    pos: p.createVector(p.mouseX, p.mouseY),
+                    radius: board.gridUnitSize * 0.3
+                });
+            }
+        } else if (gameState !== 'aiming') {
+            attractors.push(...ballsInPlay, ...miniBalls);
+        }
+        
         const xpMagnet = equipment.find(item => item.id === 'xp_magnet');
         
         // Calculate effective multipliers
@@ -703,7 +1188,9 @@ export const sketch = (p, state, callbacks) => {
                 const distToAttractor = p.dist(orb.pos.x, orb.pos.y, attractor.pos.x, attractor.pos.y);
                 const collectionRadius = attractor.radius;
 
-                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < collectionRadius && gameState !== 'aiming') {
+                const canAutoCollect = state.gameMode === 'invasionDefend' || gameState !== 'aiming';
+
+                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < collectionRadius && canAutoCollect) {
                     orb.collect();
                     
                     let xpMultiplier = 1.0;
@@ -713,10 +1200,19 @@ export const sketch = (p, state, callbacks) => {
                         if (state.skillTreeState['golden_shot_xp_3']) xpMultiplier += 1.0;
                     }
                     
-                    const xpFromOrb = XP_SETTINGS.xpPerOrb * (1 + state.upgradeableStats.bonusXp) * xpMultiplier;
+                    const xpFromOrb = XP_SETTINGS.xpPerOrb * (1 + (state.upgradeableStats.bonusXp || 0)) * xpMultiplier;
                     
-                    state.pendingXp += xpFromOrb;
-                    if (levelStats.xpCollected !== undefined) levelStats.xpCollected += xpFromOrb;
+                    if (state.gameMode === 'invasionDefend') {
+                        runStats.invasionRunCoins = (runStats.invasionRunCoins || 0) + 5;
+                        ui.renderInvasionShopUI(); // Update shop state dynamically
+                        addXp(xpFromOrb); // This handles both run stats and main progression
+                        const canvasRect = p.canvas.getBoundingClientRect();
+                        ui.animateCoinParticles(canvasRect.left + orb.pos.x, canvasRect.top + orb.pos.y, 5);
+                    } else {
+                        state.pendingXp += xpFromOrb;
+                        if (levelStats.xpCollected !== undefined) levelStats.xpCollected += xpFromOrb;
+                    }
+
                     orbsCollectedThisTurn++;
                     xpCollectPitchResetTimer = 30;
                     sounds.orbCollect(orbsCollectedThisTurn);
@@ -733,31 +1229,59 @@ export const sketch = (p, state, callbacks) => {
             }
         }
         
-        // VFX updates
-        [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs].forEach(vfxArray => {
-            for (let i = vfxArray.length - 1; i >= 0; i--) {
-                const vfx = vfxArray[i];
-                if (!vfx) {
-                    vfxArray.splice(i, 1);
-                    continue;
-                }
-                vfx.update(); 
-                if (vfx.isFinished()) vfxArray.splice(i, 1); 
+        // --- Enchanter Orb Logic ---
+        for (let i = enchanterOrbs.length - 1; i >= 0; i--) {
+            const orb = enchanterOrbs[i];
+            orb.update(attractors); 
+        
+            if (orb.isFinished()) {
+                enchanterOrbs.splice(i, 1);
+                continue;
             }
-        });
+            
+            for (const attractor of attractors) {
+                const distToAttractor = p.dist(orb.pos.x, orb.pos.y, attractor.pos.x, attractor.pos.y);
+                const collectionRadius = attractor.radius;
+        
+                const canAutoCollect = state.gameMode === 'invasionDefend';
+        
+                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < collectionRadius && canAutoCollect) {
+                    orb.collect();
+                    
+                    if (runStats.enchantersCollected) {
+                        runStats.enchantersCollected[orb.type]++;
+                    }
+                    
+                    sounds.enchanterCollect();
+                    const icon = ENCHANTER_STATS[orb.type].icon;
+                    floatingTexts.push(new FloatingText(p, orb.pos.x, orb.pos.y, `+1 ${icon}`, p.color(221, 191, 216), { isBold: true, size: 16 }));
+                    
+                    break; 
+                }
+            }
+        }
+
+        updateVFX();
         
         // --- RENDER LOGIC ---
         if (!shouldRender) return;
 
-        renderGame(p, {
+        const renderContext = {
             gameState, board, splatBuffer, shakeAmount, isAiming, ballsInPlay, endAimPos, 
-            bricks, ghostBalls, miniBalls, projectiles, xpOrbs,
-            particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles,
-            combo, sharedBallStats, selectedBrick, flyingIcons, draggedBrick
-        }, { 
+            bricks, ghostBalls, miniBalls, projectiles, xpOrbs, enchanterOrbs, lasers, vanishingLasers,
+            particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, zapperSparkles, chainVFXs,
+            combo, sharedBallStats, selectedBrick, flyingIcons, draggedBrick, npcBalls
+        };
+        renderGame(p, renderContext, { 
             farmland: { canProduce: farmlandCanProduce },
             sawmill: { canProduce: sawmillCanProduce }
         });
+        
+        if (state.gameMode === 'invasionDefend') {
+            if (dom.invasionShopCoinCountEl) {
+                dom.invasionShopCoinCountEl.textContent = runStats.invasionRunCoins || 0;
+            }
+        }
 
         handleGameStates();
     }
@@ -767,7 +1291,12 @@ export const sketch = (p, state, callbacks) => {
     }
     
     // --- EXPOSED CONTROL FUNCTIONS ---
+    p.getBoard = () => board;
+
     p.enterHomeBase = () => {
+        state.gameMode = 'homeBase';
+        gameState = 'loading'; // Prevent render during load
+        
         const loadAndSetup = async () => {
             if (!state.isInitialHomeBaseLayoutLoaded) {
                 try {
@@ -794,7 +1323,7 @@ export const sketch = (p, state, callbacks) => {
             farmlandCanProduce = canFarmlandProduce(homeBaseBricks, board);
             sawmillCanProduce = canSawmillProduce(homeBaseBricks, board);
 
-            ballsInPlay = []; miniBalls = []; projectiles = []; ghostBalls = []; xpOrbs = [];
+            ballsInPlay = []; miniBalls = []; projectiles = []; ghostBalls = []; xpOrbs = []; enchanterOrbs = []; lasers = []; npcBalls = [];
             particles = []; shockwaves = []; floatingTexts = []; powerupVFXs = []; stripeFlashes = []; leechHealVFXs = []; zapperSparkles = [];
             delayedActionsQueue = []; endTurnActions = [];
             flyingIcons = [];
@@ -803,11 +1332,12 @@ export const sketch = (p, state, callbacks) => {
             
             splatBuffer.clear();
             
-            state.gameMode = 'homeBase';
+            // UI updates
             ui.updateUIVisibilityForMode('homeBase');
             ui.updateCheatButtonsVisibility();
-            dom.modeToggleBtn.textContent = 'Play';
             p.recalculateMaxResources();
+            
+            gameState = 'aiming'; // Ready to render
         };
 
         loadAndSetup();
@@ -818,6 +1348,14 @@ export const sketch = (p, state, callbacks) => {
             ballsInPlay = [];
             miniBalls = [];
             projectiles = [];
+            npcBalls = [];
+            enchanterOrbs = [];
+            xpOrbs = [];
+            
+            if (state.gameMode === 'invasionDefend') {
+                dom.invasionShopUI.classList.add('hidden');
+                dom.startNextWaveBtn.classList.add('hidden');
+            }
             
             // Immediately set the state and trigger the UI update, bypassing the normal end-of-turn sequence.
             gameState = 'gameOver';
@@ -826,10 +1364,10 @@ export const sketch = (p, state, callbacks) => {
     };
     
     p.resetGame = async (settings, startLevel = 1) => {
+        gameState = 'loading'; // Prevent rendering old state
         state.gameMode = 'adventureRun';
         ui.updateUIVisibilityForMode('adventureRun');
         ui.updateCheatButtonsVisibility();
-        dom.modeToggleBtn.textContent = 'End Run';
 
         p.setBallSpeedMultiplier(settings.ballSpeed);
         level = startLevel; 
@@ -871,13 +1409,14 @@ export const sketch = (p, state, callbacks) => {
         
         splatBuffer.clear();
         await p.runLevelGeneration(settings);
+        
+        gameState = 'aiming'; // Now safe to render
     };
 
     p.startTrialRun = async (ballStock) => {
         state.gameMode = 'trialRun';
         ui.updateUIVisibilityForMode('trialRun');
         ui.updateCheatButtonsVisibility();
-        dom.modeToggleBtn.textContent = 'End Run';
     
         state.trialRunBallStock = ballStock;
     
@@ -911,6 +1450,9 @@ export const sketch = (p, state, callbacks) => {
             totalGemsCollected: 0,
             totalFoodCollected: 0,
             totalWoodCollected: 0,
+            totalMetalCollected: 0,
+            totalWireCollected: 0,
+            totalFuelCollected: 0,
             bestCombo: 0,
         };
     
@@ -924,6 +1466,207 @@ export const sketch = (p, state, callbacks) => {
         splatBuffer.clear();
     
         await p.runLevelGeneration(state.trialRunLevelSettings);
+    };
+
+    p.startInvasionDefend = async () => {
+        state.gameMode = 'invasionDefend';
+        ui.updateUIVisibilityForMode('invasionDefend');
+    
+        // Reset stats
+        state.invasionWave = 0; // Will be incremented to 1 by startNextWave
+        state.invasionBallHPPool = state.invasionSettings.startingHPPool;
+        npcBalls = [];
+        xpOrbs = [];
+        enchanterOrbs = [];
+        ballsInPlay = [];
+        invasionSpawningQueue = [];
+        npcSpawnTimer = 0;
+
+        runStats = {
+            totalXpCollected: 0,
+            invasionRunCoins: 0,
+            invasionShopPurchases: {},
+            ect3Chance: 0,
+            enchantersCollected: {
+                enchanter1: 0,
+                enchanter2: 0,
+                enchanter3: 0,
+                enchanter4: 0,
+                enchanter5: 0,
+            },
+            mysteryShopItems: null // Will be populated between waves
+        };
+        INVASION_SHOP_ITEMS.forEach(item => {
+            runStats.invasionShopPurchases[item.id] = 0;
+        });
+    
+        // Create a snapshot of the home base
+        const snapshotBricks = createEmptyBrickMatrix();
+        const sourceBricks = homeBaseBricks;
+        const processed = new Set();
+        const invalidTypes = ['LogBrick'];
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const sourceBrick = sourceBricks[c][r];
+                if (sourceBrick && !processed.has(sourceBrick)) {
+                    processed.add(sourceBrick);
+                    if (!invalidTypes.includes(sourceBrick.type)) {
+                        // Create a new brick instance. This correctly sets `this.p`.
+                        const newBrick = new Brick(p, sourceBrick.c, sourceBrick.r, sourceBrick.type, sourceBrick.maxHealth, board.gridUnitSize, sourceBrick.level);
+                        
+                        // Copy properties from the source brick without causing circular reference issues.
+                        Object.keys(sourceBrick).forEach(key => {
+                            if (key === 'p') return; // Skip the p5 instance property.
+                            
+                            const value = sourceBrick[key];
+                            // Deep copy arrays of p5.Vector
+                            if (key.endsWith('IndicatorPositions') && Array.isArray(value) && value.length > 0 && value[0].copy) {
+                                newBrick[key] = value.map(v => v.copy());
+                            } 
+                            // Deep copy production/inventory objects if they exist
+                            else if ((key === 'production' || key === 'inventory') && typeof value === 'object' && value !== null) {
+                                // These are simple objects, so stringify is fine here.
+                                newBrick[key] = JSON.parse(JSON.stringify(value));
+                            }
+                            // Shallow copy other properties
+                            else if (typeof value !== 'function') {
+                                newBrick[key] = value;
+                            }
+                        });
+    
+                        // Ensure snapshot starts with full health and no resources.
+                        newBrick.health = newBrick.maxHealth;
+                        newBrick.coins = 0;
+                        newBrick.maxCoins = 0;
+                        newBrick.food = 0;
+                        newBrick.maxFood = 0;
+                        newBrick.gems = 0;
+                        newBrick.maxGems = 0;
+    
+                        const rootC = newBrick.c + 6;
+                        const rootR = newBrick.r + 6;
+                        for(let i=0; i<newBrick.widthInCells; i++) {
+                            for(let j=0; j<newBrick.heightInCells; j++) {
+                                snapshotBricks[rootC + i][rootR + j] = newBrick;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        bricks = snapshotBricks;
+    
+        // Start the first wave
+        await p.startNextWave();
+    };
+
+    p.startNextWave = async () => {
+        // Clear all dynamic entities from the previous wave
+        npcBalls = [];
+        xpOrbs = [];
+        enchanterOrbs = [];
+        projectiles = [];
+        
+        // Trigger Laser Overlays
+        fireLasers();
+
+        // Hide invasion shop panel
+        dom.invasionShopUI.classList.add('hidden');
+        
+        gameState = 'playing';
+        dom.startNextWaveBtn.classList.add('hidden');
+        
+        state.invasionWave++;
+        if (state.invasionWave > 1) {
+            state.invasionBallHPPool += state.invasionSettings.hpPoolIncrementPerWave;
+        }
+
+        p.addFloatingText(`Wave ${state.invasionWave} Initiated!`, p.color(255, 100, 100), { size: 40, isBold: true, lifespan: 120, vel: p.createVector(0,0), scaleRate: 0.005, glow: true });
+
+        invasionSpawningQueue = []; // Clear and prepare new queue
+
+        let currentHPPool = state.invasionBallHPPool;
+        
+        const possibleNpcTypes = Object.keys(NPC_BALL_STATS).filter(
+            type => NPC_BALL_STATS[type].minWaveToAppear <= state.invasionWave
+        );
+
+        let availableNpcs = [];
+        if (possibleNpcTypes.length > 0) {
+            const { minEnemyTypes, maxEnemyTypes } = state.invasionSettings;
+            const numTypesToUse = p.floor(p.random(minEnemyTypes, Math.min(maxEnemyTypes, possibleNpcTypes.length) + 1));
+            p.shuffle(possibleNpcTypes, true);
+            availableNpcs = possibleNpcTypes.slice(0, numTypesToUse);
+        }
+
+        const goalBricks = [];
+        const processed = new Set();
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = bricks[c][r];
+                if (brick && !processed.has(brick) && brick.type === 'goal') {
+                    goalBricks.push(brick);
+                    processed.add(brick);
+                }
+            }
+        }
+
+        if (goalBricks.length === 0) {
+            // Failsafe: if no goal bricks, just add one in the center
+            const centerC = Math.floor(board.cols / 2);
+            const centerR = Math.floor(board.rows / 2);
+            if (!bricks[centerC][centerR]) {
+                const goalBrick = new Brick(p, centerC - 6, centerR - 6, 'goal', 10, board.gridUnitSize);
+                bricks[centerC][centerR] = goalBrick;
+                goalBricks.push(goalBrick);
+            }
+        }
+
+        while (currentHPPool > 0) {
+            const affordableNpcs = availableNpcs.filter(type => NPC_BALL_STATS[type].cost <= currentHPPool);
+            if (affordableNpcs.length === 0) break;
+
+            const npcType = p.random(affordableNpcs);
+            const npcStats = NPC_BALL_STATS[npcType];
+            currentHPPool -= npcStats.cost;
+
+            let guaranteedDrop = null;
+            if (runStats.ect3Chance > 0 && p.random() < runStats.ect3Chance) {
+                guaranteedDrop = 'enchanter3';
+                runStats.ect3Chance = 0;
+            } else {
+                runStats.ect3Chance += (npcStats.cost / 1000) * INVASION_MODE_PARAMS.ECT3_CHANCE_PER_1000_COST;
+            }
+
+            // Spawn position
+            let x, y;
+            const side = p.floor(p.random(4));
+            if (side === 0) { // top
+                x = p.random(board.x, board.x + board.width);
+                y = board.y - 20;
+            } else if (side === 1) { // right
+                x = board.x + board.width + 20;
+                y = p.random(board.y, board.y + board.height);
+            } else if (side === 2) { // bottom
+                x = p.random(board.x, board.x + board.width);
+                y = board.y + board.height + 20;
+            } else { // left
+                x = board.x - 20;
+                y = p.random(board.y, board.y + board.height);
+            }
+            const startPos = p.createVector(x, y);
+
+            // Target and velocity
+            const targetBrick = p.random(goalBricks);
+            if (!targetBrick) break; // No targets, stop spawning
+
+            const targetPos = targetBrick.getPixelPos(board).add(targetBrick.size / 2, targetBrick.size / 2);
+            const vel = p.constructor.Vector.sub(targetPos, startPos);
+            const baseSpeed = (board.gridUnitSize * 0.5) * state.originalBallSpeed;
+            vel.setMag(baseSpeed * npcStats.speedMultiplier);
+
+            invasionSpawningQueue.push({ pos: startPos, vel, type: npcType, target: targetBrick, guaranteedEnchanterDrop: guaranteedDrop });
+        }
     };
 
     p.nextLevel = async () => { 
@@ -954,7 +1697,7 @@ export const sketch = (p, state, callbacks) => {
                         equipmentBrickSpawnedThisLevel = false;
                         
                         // Standard reset logic after loading a level
-                        ballsInPlay = []; miniBalls = []; projectiles = []; ghostBalls = []; xpOrbs = [];
+                        ballsInPlay = []; miniBalls = []; projectiles = []; ghostBalls = []; xpOrbs = []; enchanterOrbs = []; lasers = [];
                         delayedActionsQueue = []; endTurnActions = []; endTurnActionTimer = 0; zapperAuraTimer = 0; zapperSparkles = [];
                         flyingIcons = [];
                         gameState = 'aiming';
@@ -981,6 +1724,7 @@ export const sketch = (p, state, callbacks) => {
                             woodCollected: 0,
                         };
                         
+                        fireLasers(); // Fire lasers on new level
                         return; // Skip the rest of random generation
                     }
                 }
@@ -1002,7 +1746,9 @@ export const sketch = (p, state, callbacks) => {
         miniBalls = [];
         projectiles = [];
         ghostBalls = [];
+        enchanterOrbs = [];
         xpOrbs = [];
+        lasers = [];
         delayedActionsQueue = [];
         endTurnActions = [];
         endTurnActionTimer = 0;
@@ -1042,6 +1788,8 @@ export const sketch = (p, state, callbacks) => {
             foodCollected: 0,
             woodCollected: 0,
         };
+
+        fireLasers(); // Fire lasers on new level
     };
     p.spawnXpOrbs = (count, pos) => {
         for (let i = 0; i < count; i++) {
@@ -1139,7 +1887,9 @@ export const sketch = (p, state, callbacks) => {
                 miniBalls = [];
                 projectiles = [];
                 ghostBalls = [];
+                enchanterOrbs = [];
                 xpOrbs = [];
+                lasers = [];
                 delayedActionsQueue = [];
                 endTurnActions = [];
                 flyingIcons = [];
@@ -1160,6 +1910,8 @@ export const sketch = (p, state, callbacks) => {
             miniBalls = [];
             projectiles = [];
             ghostBalls = [];
+            enchanterOrbs = [];
+            lasers = [];
             flyingIcons = [];
             gameState = 'aiming';
         }
@@ -1244,6 +1996,108 @@ export const sketch = (p, state, callbacks) => {
         }
         return placed;
     };
+    p.placeBrickInInvasion = (brickType) => {
+        let placed = false;
+        const emptyCoords = [];
+        for (let r = 0; r < board.rows; r++) {
+            for (let c = 0; c < board.cols; c++) {
+                if (!bricks[c][r]) {
+                    emptyCoords.push({c, r});
+                }
+            }
+        }
+        p.shuffle(emptyCoords, true);
+        if (emptyCoords.length > 0) {
+            const spot = emptyCoords[0];
+            const health = BRICK_STATS.maxHp[brickType] || 10;
+            const newBrick = new Brick(p, spot.c - 6, spot.r - 6, brickType, health, board.gridUnitSize);
+            bricks[spot.c][spot.r] = newBrick;
+            placed = true;
+        }
+        return placed;
+    };
+    p.applyOverlayInInvasion = (overlayType, level = 1) => {
+        let applied = false;
+        const eligibleBricks = [];
+        const processed = new Set();
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = bricks[c][r];
+                if (brick && !processed.has(brick) && brick.type === 'normal' && !brick.overlay) {
+                    eligibleBricks.push(brick);
+                    processed.add(brick);
+                }
+            }
+        }
+        p.shuffle(eligibleBricks, true);
+        if (eligibleBricks.length > 0) {
+            const targetBrick = eligibleBricks[0];
+            targetBrick.overlay = overlayType;
+            
+            // Use leveling data to set stats
+            const stats = OVERLAY_LEVELING_DATA[overlayType]?.[level - 1]?.stats || {};
+            
+            if (overlayType === 'spike') {
+                targetBrick.retaliateDamage = stats.retaliateDamage || BRICK_STATS.spike.damage;
+            }
+            if (overlayType === 'sniper') {
+                targetBrick.sniperCharge = 0;
+            }
+            applied = true;
+        }
+        return applied;
+    };
+    
+    // --- NEW METHODS FOR MYSTERY SHOP ITEMS ---
+    p.healInvasionBricks = (count) => {
+        const allBricks = [];
+        const processed = new Set();
+        for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) {
+            const b = bricks[c][r];
+            if (b && !processed.has(b) && b.health < b.maxHealth) {
+                allBricks.push(b);
+                processed.add(b);
+            }
+        }
+        p.shuffle(allBricks, true);
+        const targets = (count >= 999) ? allBricks : allBricks.slice(0, count);
+        
+        targets.forEach(b => {
+            b.health = b.maxHealth;
+            const pos = b.getPixelPos(board).add(b.size/2, b.size/2);
+            particles.push(new Particle(p, pos.x, pos.y, p.color(100, 255, 100), 3, { lifespan: 40 }));
+        });
+        if (targets.length > 0) sounds.brickHeal();
+    };
+    
+    p.buffInvasionHP = (amount) => {
+        const allBricks = [];
+        const processed = new Set();
+        for (let c = 0; c < board.cols; c++) for (let r = 0; r < board.rows; r++) {
+            const b = bricks[c][r];
+            if (b && !processed.has(b)) {
+                allBricks.push(b);
+                processed.add(b);
+            }
+        }
+        allBricks.forEach(b => {
+            b.maxHealth += amount;
+            b.health += amount;
+            const pos = b.getPixelPos(board).add(b.size/2, b.size/2);
+            particles.push(new Particle(p, pos.x, pos.y, p.color(100, 200, 255), 2, { lifespan: 30 }));
+        });
+        if (allBricks.length > 0) sounds.brickHeal();
+    };
+    
+    p.addEnchanters = (subtype, count) => {
+        if (runStats.enchantersCollected) {
+            runStats.enchantersCollected[subtype] = (runStats.enchantersCollected[subtype] || 0) + count;
+        }
+        p.addFloatingText(`+${count} ${ENCHANTER_STATS[subtype]?.name || 'Enchanter'}`, p.color(221, 191, 216), { isBold: true, size: 16 });
+        sounds.enchanterCollect();
+    };
+    // --- END NEW METHODS ---
+
     p.getBricks = () => bricks;
     p.healBall = (amount) => {
         if (ballsInPlay.length > 0 && !ballsInPlay[0].isDying) {
@@ -1273,8 +2127,8 @@ export const sketch = (p, state, callbacks) => {
         const context = { p, board, bricks, stripeFlashes, particles, delayedActionsQueue };
         clearStripe(p, brick, direction, context);
     };
-    p.spawnHomingProjectile = (position, item) => {
-        const context = { board, bricks, projectiles, ballsInPlay };
+    p.spawnHomingProjectile = (position, item, sourceBall) => {
+        const context = { board, bricks, projectiles, ballsInPlay, sourceBall };
         spawnHomingProjectile(p, position, item, context);
     };
     p.spawnWallBullets = (position, count, damage, velBefore, wallNormal) => {
@@ -1282,7 +2136,6 @@ export const sketch = (p, state, callbacks) => {
         spawnWallBullets(p, position, count, damage, velBefore, wallNormal, context);
     };
     p.addProjectiles = (projs) => projectiles.push(...projs);
-    p.getBoard = () => board;
     p.getLevelStats = () => levelStats;
     p.getRunStats = () => runStats;
     p.setRunStats = (newStats) => { runStats = newStats; };
@@ -1310,18 +2163,22 @@ export const sketch = (p, state, callbacks) => {
         const recipeData = BRICK_LEVELING_DATA[brickToUpgrade.type]?.[brickToUpgrade.level];
         if (!recipeData) return;
 
-        // Check ingredients
+        // Check ingredients, excluding bricks with overlays
         let hasIngredients = true;
         for (const ing of recipeData.ingredients) {
-            const availableCount = p.countBricks(b => b.type === ing.type && b.level === ing.level && b !== brickToUpgrade);
+            const availableCount = p.countBricks(b => 
+                b.type === ing.type && 
+                b.level === ing.level && 
+                b.id !== brickToUpgrade.id &&
+                !b.overlayId
+            );
             if (availableCount < ing.amount) {
                 hasIngredients = false;
                 break;
             }
         }
         
-        // Check resources
-                const canAfford = (state.playerFood >= (recipeData.cost.food || 0)) && (state.playerWood >= (recipeData.cost.wood || 0));
+        const canAfford = (state.playerFood >= (recipeData.cost.food || 0)) && (state.playerWood >= (recipeData.cost.wood || 0));
 
         let success = false;
         if (hasIngredients && canAfford) {
@@ -1331,7 +2188,7 @@ export const sketch = (p, state, callbacks) => {
                 for (let c = 0; c < board.cols; c++) {
                     for (let r = 0; r < board.rows; r++) {
                         const brick = homeBaseBricks[c][r];
-                        if (brick && brick.type === ing.type && brick.level === ing.level && brick !== brickToUpgrade) {
+                        if (brick && brick.type === ing.type && brick.level === ing.level && brick.id !== brickToUpgrade.id && !brick.overlayId) {
                             homeBaseBricks[c][r] = null;
                             consumed++;
                             if (consumed >= ing.amount) break;
@@ -1341,14 +2198,15 @@ export const sketch = (p, state, callbacks) => {
                 }
             }
             
-            // Consume resources
             state.playerFood -= (recipeData.cost.food || 0);
             state.playerWood -= (recipeData.cost.wood || 0);
 
-            // Apply stats
             brickToUpgrade.level++;
             Object.assign(brickToUpgrade, recipeData.stats);
-            // After assigning, re-calculate capacities if it was a storage building
+            
+            if (brickToUpgrade.type === 'BallProducer') {
+                brickToUpgrade.production.maxQueue = recipeData.stats.maxQueue;
+            }
             if (brickToUpgrade.type === 'FoodStorage' || brickToUpgrade.type === 'WoodStorage') {
                 p.recalculateMaxResources();
             }
@@ -1387,7 +2245,6 @@ export const sketch = (p, state, callbacks) => {
         }
         
         let refundedCount = 0;
-        // Prioritize filling partially empty cages first
         emptyCages.sort((a, b) => b.inventory.length - a.inventory.length);
         
         for (const cage of emptyCages) {
@@ -1407,7 +2264,6 @@ export const sketch = (p, state, callbacks) => {
             p.addFloatingText(`Refunded ${refundedCount} balls to Home Base`, p.color(100, 255, 100), { isBold: true });
         }
         
-        // Clear the trial run stock after attempting refund
         state.trialRunBallStock = {};
     };
 
@@ -1418,6 +2274,21 @@ export const sketch = (p, state, callbacks) => {
             const evt = eventQueue.shift();
             if (!evt) continue;
             switch (evt.type) {
+                case 'sound':
+                    if (evt.sound && sounds[evt.sound]) {
+                        sounds[evt.sound]();
+                    }
+                    break;
+                case 'spawn_projectiles':
+                    if (evt.projectiles) {
+                        projectiles.push(...evt.projectiles);
+                    }
+                    break;
+                case 'explode':
+                    if (evt.pos && evt.radius && evt.damage) {
+                        p.explode(evt.pos, evt.radius, evt.damage, evt.source || 'unknown');
+                    }
+                    break;
                 case 'damage_taken':
                     event.dispatch('BallHpLost', { amount: evt.damageAmount, source: evt.source, ball: ballsInPlay[0], position: evt.position });
 
@@ -1510,6 +2381,20 @@ export const sketch = (p, state, callbacks) => {
                         const canvasRect = p.canvas.getBoundingClientRect();
                         ui.animateGemParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.gemsDropped);
                     }
+                    
+                    if (evt.foodDropped > 0) {
+                        if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
+                            levelStats.foodCollected += evt.foodDropped;
+                            gameController.getRunStats().totalFoodCollected += evt.foodDropped;
+                        } else {
+                            state.playerFood = Math.min(state.maxFood, state.playerFood + evt.foodDropped);
+                        }
+                        sounds.foodCollect();
+                        floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
+                        const canvasRect = p.canvas.getBoundingClientRect();
+                        animateFoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, evt.foodDropped);
+                    }
+
                     particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
                     sounds.brickHit(p, evt.totalLayers);
                     triggerShake(2, 5);
@@ -1523,8 +2408,29 @@ export const sketch = (p, state, callbacks) => {
                     if(evt.isBroken) {
                         sounds.brickBreak();
                         particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
+                        if (state.gameMode === 'invasionDefend') {
+                            let goalsLeft = 0;
+                            const processed = new Set();
+                            for (let c = 0; c < board.cols; c++) {
+                                for (let r = 0; r < board.rows; r++) {
+                                    const b = bricks[c][r];
+                                    if (b && !processed.has(b) && b.type === 'goal') {
+                                        goalsLeft++;
+                                        processed.add(b);
+                                    }
+                                }
+                            }
+                            if (goalsLeft === 0) {
+                                gameState = 'gameOver';
+                            }
+                        }
                     }
                     if (evt.events && evt.events.length > 0) eventQueue.push(...evt.events);
+
+                    const chainEvents = handleChainDamage(evt.source, evt.brick);
+                    if (chainEvents.length > 0) {
+                        eventQueue.push(...chainEvents);
+                    }
                     break;
                  case 'explode_mine':
                     p.explode(evt.pos, board.gridUnitSize * BRICK_STATS.mine.radiusTiles, BRICK_STATS.mine.damage, 'mine');
@@ -1538,7 +2444,7 @@ export const sketch = (p, state, callbacks) => {
 
         const gameStateRef = { value: gameState };
         const ballsLeftRef = { value: ballsLeft };
-        const context = { p, board, bricks, splatBuffer, ballsInPlay, sharedBallStats, levelStats, floatingTexts, shockwaves, sounds, gameStateRef, ballsLeftRef, BRICK_STATS };
+        const context = { p, board, bricks, splatBuffer, ballsInPlay, sharedBallStats, levelStats, floatingTexts, shockwaves, sounds, gameStateRef, ballsLeftRef, BRICK_STATS, gameController: p };
         processBrokenBricks(initialEvents.find(e => e.type === 'brick_hit'), context);
         gameState = gameStateRef.value;
         ballsLeft = ballsLeftRef.value;
@@ -1582,6 +2488,8 @@ export const sketch = (p, state, callbacks) => {
         } 
     }
     
+    p.getSketch = () => p;
+
     p.mouseClicked = (evt) => {
         if (p.isModalOpen || evt.target !== p.canvas) return;
         if (state.isEditorMode) {
@@ -1594,74 +2502,137 @@ export const sketch = (p, state, callbacks) => {
     
     p.mousePressed = (evt) => {
         if (p.isModalOpen || evt.target !== p.canvas) return;
+
+        const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
+        const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
+        let clickedBrick = null;
+        if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
+            clickedBrick = (state.gameMode === 'homeBase' ? homeBaseBricks : bricks)[gridC][gridR];
+        }
+
+        if (state.gameMode === 'homeBase' && state.isMovingOverlay) {
+            const isValidTarget = clickedBrick && clickedBrick.type === 'normal' && !clickedBrick.overlayId;
+            if (isValidTarget) {
+                const overlay = state.overlayInventory.find(o => o.id === state.isMovingOverlay);
+                if (overlay) {
+                    let oldHost = null;
+                    const allBricks = new Set();
+                    for(let r=0; r<board.rows; r++) for(let c=0; c<board.cols; c++) if(homeBaseBricks[c][r]) allBricks.add(homeBaseBricks[c][r]);
+
+                    allBricks.forEach(b => {
+                        if (b.id === overlay.hostBrickId) oldHost = b;
+                    });
+                    
+                    if (oldHost) {
+                        oldHost.overlayId = null;
+                        oldHost.overlay = null;
+                        oldHost.retaliateDamage = 0;
+                        delete oldHost.sniperCharge;
+                    }
+
+                    clickedBrick.overlayId = overlay.id;
+                    clickedBrick.overlay = overlay.type;
+                    overlay.hostBrickId = clickedBrick.id;
+                    
+                    if (overlay.type === 'spike') clickedBrick.retaliateDamage = overlay.retaliateDamage || BRICK_STATS.spike.damage;
+                    if (overlay.type === 'sniper') clickedBrick.sniperCharge = 0;
+
+                    state.isMovingOverlay = null;
+                    event.dispatch('BrickSelected', { brick: clickedBrick });
+                    sounds.selectBall();
+                }
+            } else {
+                 p.addFloatingText("Invalid Target", p.color(255, 100, 100), { isBold: true });
+                 state.isMovingOverlay = null;
+                 if (selectedBrick) event.dispatch('BrickSelected', { brick: selectedBrick });
+            }
+            return;
+        }
+    
+        if (state.gameMode === 'invasionDefend' && gameState === 'aiming') {
+            if (draggedBrick) return;
+
+            if (selectedBrick && clickedBrick === selectedBrick) {
+                draggedBrick = selectedBrick;
+                draggedBrickOriginalPos = { c: selectedBrick.c, r: selectedBrick.r };
+                const rootC = draggedBrick.c + 6;
+                const rootR = draggedBrick.r + 6;
+                for (let i = 0; i < draggedBrick.widthInCells; i++) {
+                    for (let j = 0; j < draggedBrick.heightInCells; j++) {
+                        if (bricks[rootC + i] && bricks[rootC + i][rootR + j] === draggedBrick) {
+                            bricks[rootC + i][rootR + j] = null;
+                        }
+                    }
+                }
+                return;
+            }
+
+            selectedBrick = clickedBrick;
+            event.dispatch('BrickSelected', { brick: selectedBrick });
+            return;
+        }
         
         if (state.isEditorMode) {
             levelEditor.handleMousePressed(p, board, bricks, shockwaves);
             return;
         }
         
-        if (state.gameMode === 'homeBase' && !state.isEditorMode) {
-            homeBaseHarvestedThisDrag.clear();
-            const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-            const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
-            let clickedBrick = null;
-            if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
-                clickedBrick = bricks[gridC][gridR];
+        if ((state.gameMode === 'homeBase' && !state.isEditorMode)) {
+            const isHomeBase = state.gameMode === 'homeBase';
+            const bricksToInteract = isHomeBase ? homeBaseBricks : bricks;
+
+            if (isHomeBase) {
+                homeBaseHarvestedThisDrag.clear();
             }
-    
+
+            if (draggedBrick) return;
+
             if (selectedBrick && clickedBrick === selectedBrick) {
-                // Start dragging the selected brick
                 draggedBrick = selectedBrick;
                 draggedBrickOriginalPos = { c: selectedBrick.c, r: selectedBrick.r };
-                
-                // Temporarily clear the brick from its original position for valid drop checks
                 const rootC = draggedBrick.c + 6;
                 const rootR = draggedBrick.r + 6;
                 for (let i = 0; i < draggedBrick.widthInCells; i++) {
                     for (let j = 0; j < draggedBrick.heightInCells; j++) {
-                        if (homeBaseBricks[rootC + i] && homeBaseBricks[rootC + i][rootR + j] === draggedBrick) {
-                            homeBaseBricks[rootC + i][rootR + j] = null;
+                        if (bricksToInteract[rootC + i] && bricksToInteract[rootC + i][rootR + j] === draggedBrick) {
+                            bricksToInteract[rootC + i][rootR + j] = null;
                         }
                     }
                 }
-                return; // Don't deselect or harvest
+                return;
             }
-    
-            if (clickedBrick) {
-                if (clickedBrick.food > 0) {
-                    harvestFood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
-                    homeBaseHarvestedThisDrag.add(clickedBrick);
-                    return; // Don't select brick if harvesting
-                }
-                
-                if (clickedBrick.type === 'LogBrick') {
-                    harvestWood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
-                    homeBaseHarvestedThisDrag.add(clickedBrick);
-                    return; // Don't select brick if harvesting
-                }
-    
-                if (harvestResourceFromProducer(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p })) {
-                    homeBaseHarvestedThisDrag.add(clickedBrick);
-                    return; // Don't select if harvesting from storage
-                }
 
+            if (clickedBrick) {
+                if (isHomeBase) {
+                    if (clickedBrick.food > 0) {
+                        harvestFood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
+                        homeBaseHarvestedThisDrag.add(clickedBrick);
+                        return;
+                    }
+                    if (clickedBrick.type === 'LogBrick') {
+                        harvestWood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
+                        homeBaseHarvestedThisDrag.add(clickedBrick);
+                        return;
+                    }
+                    if (harvestResourceFromProducer(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p })) {
+                        homeBaseHarvestedThisDrag.add(clickedBrick);
+                        return;
+                    }
+                }
                 selectedBrick = clickedBrick;
             } else {
-                selectedBrick = null; // Clicked outside any brick, deselect.
+                selectedBrick = null;
             }
             event.dispatch('BrickSelected', { brick: selectedBrick });
-            return; 
+            return;
         }
 
         if (state.isDebugView) {
-            const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-            const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
             if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
-                const brick = bricks[gridC][gridR];
-                if (brick) {
-                    const hitResult = brick.hit(10, 'debug_click', board);
+                if (clickedBrick) {
+                    const hitResult = clickedBrick.hit(10, 'debug_click', board);
                     if (hitResult) {
-                        processEvents([{ type: 'brick_hit', ...hitResult }]);
+                        processEvents([{ type: 'brick_hit', ...hitResult, brick: clickedBrick }]);
                     }
                     return; // Prevent other mouse logic from running
                 }
@@ -1717,7 +2688,7 @@ export const sketch = (p, state, callbacks) => {
                         }
                         if (effect.type === 'spawn_projectiles') projectiles.push(...effect.projectiles);
                         if (effect.type === 'spawn_homing_projectile') {
-                            p.spawnHomingProjectile(ball.pos.copy());
+                            p.spawnHomingProjectile(ball.pos.copy(), null, ball);
                         }
                     }
                 }
@@ -1729,7 +2700,8 @@ export const sketch = (p, state, callbacks) => {
             const ball = ballsInPlay[0];
             const clickInBoard = p.mouseY > board.y && p.mouseY < board.y + board.height && p.mouseX > board.x && p.mouseX < board.x + board.width;
             if (clickInBoard) { 
-                isAiming = true; 
+                isAiming = true;
+                dom.leftContextPanel.classList.add('hidden');
                 endAimPos = p.createVector(p.mouseX, p.mouseY); 
                 let distTop=p.abs(p.mouseY-board.y),distBottom=p.abs(p.mouseY-(board.y+board.height)),distLeft=p.abs(p.mouseX-board.x),distRight=p.abs(p.mouseX-(board.x+board.width)); 
                 let minDist=p.min(distTop,distBottom,distLeft,distRight); 
@@ -1752,32 +2724,75 @@ export const sketch = (p, state, callbacks) => {
                 } 
                 ball.pos.set(shootX, shootY); 
             }
-        }
+        } 
     };
     p.mouseDragged = (evt) => {
         if (p.isModalOpen || evt.target !== p.canvas || !p.mouseIsPressed) return;
-    
-        if (state.gameMode === 'homeBase' && !state.isEditorMode) {
+
+        // Calculate clickedBrick for the current mouse position
+        const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
+        const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
+        let clickedBrick = null;
+        const bricksToSearch = (state.gameMode === 'homeBase') ? homeBaseBricks : bricks;
+        if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
+            clickedBrick = bricksToSearch[gridC][gridR];
+        }
+        
+        if (state.gameMode === 'invasionDefend' && (gameState === 'aiming' || gameState === 'playing')) {
             if (draggedBrick) {
-                // Drag logic is handled by render, just prevent default browser behavior
-            } else {
-                const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
-                const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
-                if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
-                    const brick = bricks[gridC][gridR];
-                    if (brick && !homeBaseHarvestedThisDrag.has(brick)) {
-                        if (brick.food > 0) {
-                            harvestFood(brick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
-                            homeBaseHarvestedThisDrag.add(brick);
-                        }
-                        if (brick.type === 'LogBrick') {
-                            harvestWood(brick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
-                            homeBaseHarvestedThisDrag.add(brick);
+                return false; 
+            }
+            return false;
+        }
+        
+        if ((state.gameMode === 'homeBase' && !state.isEditorMode)) {
+            const isHomeBase = state.gameMode === 'homeBase';
+            const bricksToInteract = isHomeBase ? homeBaseBricks : bricks;
+
+            if (isHomeBase) {
+                homeBaseHarvestedThisDrag.clear();
+            }
+
+            if (draggedBrick) return;
+
+            if (selectedBrick && clickedBrick === selectedBrick) {
+                draggedBrick = selectedBrick;
+                draggedBrickOriginalPos = { c: selectedBrick.c, r: selectedBrick.r };
+                const rootC = draggedBrick.c + 6;
+                const rootR = draggedBrick.r + 6;
+                for (let i = 0; i < draggedBrick.widthInCells; i++) {
+                    for (let j = 0; j < draggedBrick.heightInCells; j++) {
+                        if (bricksToInteract[rootC + i] && bricksToInteract[rootC + i][rootR + j] === draggedBrick) {
+                            bricksToInteract[rootC + i][rootR + j] = null;
                         }
                     }
                 }
+                return;
             }
-            return false; // Prevent page scroll on mobile
+
+            if (clickedBrick) {
+                if (isHomeBase) {
+                    if (clickedBrick.food > 0) {
+                        harvestFood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
+                        homeBaseHarvestedThisDrag.add(clickedBrick);
+                        return;
+                    }
+                    if (clickedBrick.type === 'LogBrick') {
+                        harvestWood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
+                        homeBaseHarvestedThisDrag.add(clickedBrick);
+                        return;
+                    }
+                    if (harvestResourceFromProducer(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p })) {
+                        homeBaseHarvestedThisDrag.add(clickedBrick);
+                        return;
+                    }
+                }
+                selectedBrick = clickedBrick;
+            } else {
+                selectedBrick = null;
+            }
+            event.dispatch('BrickSelected', { brick: selectedBrick });
+            return;
         }
         
         if (state.isEditorMode) {
@@ -1790,6 +2805,11 @@ export const sketch = (p, state, callbacks) => {
     };
     p.mouseReleased = (evt) => { 
         if (draggedBrick) {
+            const bricksToModify = (state.gameMode === 'homeBase' || state.gameMode === 'invasionDefend') ? bricks : null;
+            if (!bricksToModify) {
+                draggedBrick = null;
+                return;
+            }
             const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
             const gridR = Math.floor((p.mouseY - board.genY) / board.gridUnitSize);
             
@@ -1799,7 +2819,7 @@ export const sketch = (p, state, callbacks) => {
                 for (let j = 0; j < draggedBrick.heightInCells; j++) {
                     const targetC = gridC + i;
                     const targetR = gridR + j;
-                    if (targetC < 0 || targetC >= board.cols || targetR < 0 || targetR >= board.rows || homeBaseBricks[targetC][targetR]) {
+                    if (targetC < 0 || targetC >= board.cols || targetR < 0 || targetR >= board.rows || bricksToModify[targetC][targetR]) {
                         isValidDrop = false;
                         break;
                     }
@@ -1808,23 +2828,21 @@ export const sketch = (p, state, callbacks) => {
             }
     
             if (isValidDrop) {
-                // Place brick at new location
                 draggedBrick.c = gridC - 6;
                 draggedBrick.r = gridR - 6;
                 for (let i = 0; i < draggedBrick.widthInCells; i++) {
                     for (let j = 0; j < draggedBrick.heightInCells; j++) {
-                        homeBaseBricks[gridC + i][gridR + j] = draggedBrick;
+                        bricksToModify[gridC + i][gridR + j] = draggedBrick;
                     }
                 }
             } else {
-                // Return to original position
                 const originalGridC = draggedBrickOriginalPos.c + 6;
                 const originalGridR = draggedBrickOriginalPos.r + 6;
                 draggedBrick.c = draggedBrickOriginalPos.c;
                 draggedBrick.r = draggedBrickOriginalPos.r;
                 for (let i = 0; i < draggedBrick.widthInCells; i++) {
                     for (let j = 0; j < draggedBrick.heightInCells; j++) {
-                        homeBaseBricks[originalGridC + i][originalGridR + j] = draggedBrick;
+                        bricksToModify[originalGridC + i][originalGridR + j] = draggedBrick;
                     }
                 }
             }
@@ -1847,7 +2865,11 @@ export const sketch = (p, state, callbacks) => {
             const ball = ballsInPlay[0];
             ghostBalls = [];
             const cancelRadius = ball.radius * AIMING_SETTINGS.AIM_CANCEL_RADIUS_MULTIPLIER; 
-            if (p.dist(endAimPos.x, endAimPos.y, ball.pos.x, ball.pos.y) < cancelRadius) { isAiming = false; return; }
+            if (p.dist(endAimPos.x, endAimPos.y, ball.pos.x, ball.pos.y) < cancelRadius) {
+                isAiming = false;
+                dom.leftContextPanel.classList.remove('hidden');
+                return;
+            }
             
             let aimDir = p.constructor.Vector.sub(endAimPos, ball.pos);
             if (aimDir.magSq() > 1) {
@@ -1875,6 +2897,7 @@ export const sketch = (p, state, callbacks) => {
 
                 if (!ballConsumed) {
                     isAiming = false;
+                    dom.leftContextPanel.classList.remove('hidden');
                     return;
                 }
 
@@ -1914,10 +2937,11 @@ export const sketch = (p, state, callbacks) => {
                 state.orbsForHeal = 0;
             }
             isAiming = false; 
+            dom.leftContextPanel.classList.remove('hidden');
         } 
     };
     p.touchStarted = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mousePressed(evt); return false; };
-    p.touchMoved = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mouseDragged(); if(isAiming || state.isEditorMode || state.gameMode === 'homeBase')return false; };
+    p.touchMoved = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mouseDragged(); if(isAiming || state.isEditorMode || state.gameMode === 'homeBase' || (state.gameMode === 'invasionDefend' && gameState === 'aiming'))return false; };
     p.touchEnded = (evt) => { if(evt.target!==p.canvas)return; p.mouseReleased(); return false; };
     
     p.windowResized = () => { 
@@ -1941,6 +2965,11 @@ export const sketch = (p, state, callbacks) => {
         if(state.p5Instance) p.setBallSpeedMultiplier(state.originalBallSpeed);
     };
     
+    // New method to expose Shockwave creation safely
+    p.spawnShockwave = (x, y, radius, color) => {
+        shockwaves.push(new Shockwave(p, x, y, radius, color, 5));
+    };
+
     function handleGameStates() { 
         if (gameState==='levelComplete'||gameState==='gameOver') { 
             if (state.isSpedUp) {

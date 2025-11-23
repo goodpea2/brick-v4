@@ -1,17 +1,18 @@
 
-// input.js - User input and event listeners
+// ui/input.js - User input and event listeners
 
-import * as dom from './dom.js';
-import { state, applyAllUpgrades } from './state.js';
-import * as ui from './ui/index.js';
-import { sounds } from './sfx.js';
-import { XP_SETTINGS, UNLOCK_LEVELS, ENCHANTMENT_REQUIREMENTS, ENCHANTMENT_OUTCOMES, ENCHANTER_STATS, HOME_BASE_PRODUCTION } from './balancing.js';
-import { SKILL_TREE_DATA } from './skillTreeData.js';
-import { ALL_EQUIPMENT_IDS, createEquipment, RARITIES } from './equipment.js';
-import * as event from './eventManager.js';
-import { updateContextPanel } from './ui/homeBaseContext.js';
-import { GAME_MODE_TEXT } from './text.js';
-import { getLevelSettings, populateSettingsModal, getInvasionSettings } from './ui/settings.js';
+import * as dom from '../dom.js';
+import { state, applyAllUpgrades } from '../state.js';
+import * as ui from './index.js';
+import { sounds } from '../sfx.js';
+import { XP_SETTINGS, UNLOCK_LEVELS, ENCHANTMENT_REQUIREMENTS, ENCHANTMENT_OUTCOMES, ENCHANTER_STATS, HOME_BASE_PRODUCTION } from '../balancing.js';
+import { SKILL_TREE_DATA } from '../skillTreeData.js';
+import { ALL_EQUIPMENT_IDS, createEquipment, RARITIES } from '../equipment.js';
+import * as event from '../eventManager.js';
+import { updateContextPanel } from './homeBaseContext.js';
+import { GAME_MODE_TEXT } from '../text.js';
+import { getLevelSettings, populateSettingsModal, getInvasionSettings } from './settings.js';
+import { BRICK_LEVELING_DATA } from '../brickLeveling.js';
 
 export function initializeInput(gameController, runCode) {
     let adventureStartLevel = 1;
@@ -37,7 +38,7 @@ export function initializeInput(gameController, runCode) {
         } 
     });
 
-    dom.speedToggleBtn.addEventListener('click', () => { 
+        dom.speedToggleBtn.addEventListener('click', () => { 
         sounds.buttonClick(); 
         if (!state.p5Instance || dom.speedToggleBtn.disabled) return; 
         const spedUp = gameController.toggleSpeed(); 
@@ -116,37 +117,60 @@ export function initializeInput(gameController, runCode) {
             dom.adventureRunBtn.textContent = `Start level ${adventureStartLevel}`;
     
             // Trial Run
-            const trialDescriptionText = GAME_MODE_TEXT.trialRun.description
-                .replace('{trialRunHighestLevelReached}', state.trialRunHighestLevelReached)
-                .replace(/\n/g, '<br>');
-            dom.trialRunDescriptionEl.innerHTML = trialDescriptionText + `<br><br><small style="opacity: 0.8;">${GAME_MODE_TEXT.trialRun.loot}</small>`;
+            const trialUnlocked = state.mainLevel >= UNLOCK_LEVELS.TRIAL_RUN;
+            const trialCard = dom.trialRunBtn.closest('.gamemode-card');
+            if (trialCard) trialCard.classList.toggle('locked', !trialUnlocked);
 
-            const homeBaseBricks = gameController.getHomeBaseBricks();
-            const board = gameController.getBoard();
-            let totalBalls = 0;
-            const processed = new Set();
-            if(homeBaseBricks && board) {
-                for (let c = 0; c < board.cols; c++) {
-                    for (let r = 0; r < board.rows; r++) {
-                        const brick = homeBaseBricks[c][r];
-                        if (brick && brick.type === 'EmptyCage' && !processed.has(brick)) {
-                            processed.add(brick);
-                            totalBalls += brick.inventory.length;
+            if (trialUnlocked) {
+                const trialDescriptionText = GAME_MODE_TEXT.trialRun.description
+                    .replace('{trialRunHighestLevelReached}', state.trialRunHighestLevelReached)
+                    .replace(/\n/g, '<br>');
+                dom.trialRunDescriptionEl.innerHTML = trialDescriptionText + `<br><br><small style="opacity: 0.8;">${GAME_MODE_TEXT.trialRun.loot}</small>`;
+
+                const homeBaseBricks = gameController.getHomeBaseBricks();
+                const board = gameController.getBoard();
+                let totalBalls = 0;
+                const processed = new Set();
+                if(homeBaseBricks && board) {
+                    for (let c = 0; c < board.cols; c++) {
+                        for (let r = 0; r < board.rows; r++) {
+                            const brick = homeBaseBricks[c][r];
+                            if (brick && brick.type === 'EmptyCage' && !processed.has(brick)) {
+                                processed.add(brick);
+                                totalBalls += brick.inventory.length;
+                            }
                         }
                     }
                 }
+                
+                dom.trialRunBtn.textContent = `Play - use all ${totalBalls} balls`;
+                dom.trialRunBtn.disabled = totalBalls < 3;
+                if (totalBalls < 3) {
+                    dom.trialRunBtn.title = 'You need at least 3 balls in your Cages to start a Trial Run.';
+                } else {
+                    dom.trialRunBtn.title = '';
+                }
+            } else {
+                dom.trialRunDescriptionEl.innerHTML = `<div style="color: #aaa; margin-top: 10px;">Unlocks at level ${UNLOCK_LEVELS.TRIAL_RUN}</div>`;
+                dom.trialRunBtn.textContent = `Locked`;
+                dom.trialRunBtn.disabled = true;
+                dom.trialRunBtn.title = `Reach Level ${UNLOCK_LEVELS.TRIAL_RUN} to unlock.`;
             }
             
-            dom.trialRunBtn.textContent = `Play - use all ${totalBalls} balls`;
-            dom.trialRunBtn.disabled = totalBalls < 3;
-            if (totalBalls < 3) {
-                dom.trialRunBtn.title = 'You need at least 3 balls in your Cages to start a Trial Run.';
-            } else {
-                dom.trialRunBtn.title = '';
-            }
-
             // Invasion
-            dom.invasionDefendDescriptionEl.innerHTML = GAME_MODE_TEXT.invasionDefend.description + `<br><br><small style="opacity: 0.8;">${GAME_MODE_TEXT.invasionDefend.loot}</small>`;
+            const invasionUnlocked = state.mainLevel >= UNLOCK_LEVELS.INVASION_MODE;
+            const invasionCard = dom.invasionDefendBtn.closest('.gamemode-card');
+            if (invasionCard) invasionCard.classList.toggle('locked', !invasionUnlocked);
+            
+            if (invasionUnlocked) {
+                dom.invasionDefendDescriptionEl.innerHTML = GAME_MODE_TEXT.invasionDefend.description + `<br><br><small style="opacity: 0.8;">${GAME_MODE_TEXT.invasionDefend.loot}</small>`;
+                dom.invasionDefendBtn.textContent = 'Play';
+                dom.invasionDefendBtn.disabled = false;
+            } else {
+                dom.invasionDefendDescriptionEl.innerHTML = `<div style="color: #aaa; margin-top: 10px;">Unlocks at level ${UNLOCK_LEVELS.INVASION_MODE}</div>`;
+                dom.invasionDefendBtn.textContent = `Locked`;
+                dom.invasionDefendBtn.disabled = true;
+            }
     
             dom.gameModeModal.classList.remove('hidden');
             if (state.p5Instance) state.p5Instance.isModalOpen = true;
@@ -225,7 +249,7 @@ export function initializeInput(gameController, runCode) {
         }
     });
 
-    dom.gameOverContinueButton.addEventListener('click', () => {
+    dom.gameOverContinueButton.addEventListener('click', async () => {
         sounds.buttonClick();
         dom.gameOverModal.classList.add('hidden');
     
@@ -246,7 +270,15 @@ export function initializeInput(gameController, runCode) {
                      state.playerMaterials.fuel += (runStats.totalFuelCollected || 0);
                  }
             }
-            gameController.enterHomeBase();
+            
+            // Use explicit numeric comparison if needed, ensuring imported value is valid
+            const unlockLvl = UNLOCK_LEVELS.HOME_BASE || 13; // Fallback to 13 if import fails for some reason
+            
+            if (state.mainLevel < unlockLvl) {
+                await gameController.resetGame(getLevelSettings(), 1);
+            } else {
+                gameController.enterHomeBase();
+            }
         }
     
         if (state.p5Instance) {

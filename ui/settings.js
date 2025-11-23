@@ -65,37 +65,73 @@ export function getLevelSettings() {
     return userSettings;
 }
 
-export function populateSettingsModal(settings) {
-    dom.seedInput.value = settings.seed ?? '';
-    dom.levelPatternSelect.value = settings.levelPattern;
-    dom.startingBallsInput.value = settings.startingBalls;
-    dom.ballSpeedInput.value = settings.ballSpeed;
-    dom.ballSpeedValue.textContent = settings.ballSpeed.toFixed(1);
-    dom.goalBricksInput.value = settings.goalBricks;
-    dom.goalBrickCountIncrementInput.value = settings.goalBrickCountIncrement;
-    dom.goalBrickCapInput.value = settings.goalBrickCap;
-    dom.goalBrickMaxHpInput.value = settings.goalBrickMaxHp;
-    dom.extraBallBricksInput.value = settings.extraBallBricks;
-    dom.explosiveBrickChanceInput.value = settings.explosiveBrickChance;
-    dom.explosiveBrickChanceValue.textContent = settings.explosiveBrickChance.toFixed(2);
-    dom.ballCageBrickChanceInput.value = settings.ballCageBrickChance;
-    dom.ballCageBrickChanceValue.textContent = settings.ballCageBrickChance.toFixed(2);
-    dom.brickCountInput.value = settings.brickCount;
-    dom.brickCountIncrementInput.value = settings.brickCountIncrement;
-    dom.maxBrickCountInput.value = settings.maxBrickCount;
-    dom.fewBrickLayoutChanceInput.value = settings.fewBrickLayoutChance;
-    dom.fewBrickLayoutChanceValue.textContent = settings.fewBrickLayoutChance.toFixed(2);
-    dom.fewBrickLayoutChanceMinLevelInput.value = settings.fewBrickLayoutChanceMinLevel;
-    dom.startingBrickHpInput.value = settings.startingBrickHp;
-    dom.brickHpIncrementInput.value = settings.brickHpIncrement;
-    dom.brickHpIncrementMultiplierInput.value = settings.brickHpIncrementMultiplier;
-    dom.maxBrickHpIncrementInput.value = settings.maxBrickHpIncrement;
-    dom.startingCoinInput.value = settings.startingCoin;
-    dom.coinIncrementInput.value = settings.coinIncrement;
-    dom.maxCoinInput.value = settings.maxCoin;
-    dom.bonusLevelIntervalInput.value = settings.bonusLevelInterval;
-    dom.minCoinBonusMultiplierInput.value = settings.minCoinBonusMultiplier;
-    dom.maxCoinBonusMultiplierInput.value = settings.maxCoinBonusMultiplier;
-    dom.builderBrickChanceInput.value = settings.builderBrickChance;
-    dom.healerBrickChanceInput.value = settings.healerBrickChance;
+export function getInvasionSettings() {
+    return {
+        startingHPPool: parseInt(dom.startingHPPoolInput.value, 10),
+        hpPoolIncrementPerWave: parseInt(dom.hpPoolIncrementPerWaveInput.value, 10),
+        minEnemyTypes: parseInt(dom.minEnemyTypesInput.value, 10),
+        maxEnemyTypes: parseInt(dom.maxEnemyTypesInput.value, 10),
+    };
+}
+
+
+export function populateSettingsModal() { 
+    if (state.gameMode === 'invasionDefend') {
+        dom.levelSettingsTitle.textContent = 'Invasion Settings';
+        dom.adventureSettingsContainer.classList.add('hidden');
+        dom.invasionSettingsContainer.classList.remove('hidden');
+        dom.generateLevelBtn.textContent = 'Apply & Close';
+
+        const settings = state.invasionSettings;
+        dom.startingHPPoolInput.value = settings.startingHPPool;
+        dom.hpPoolIncrementPerWaveInput.value = settings.hpPoolIncrementPerWave;
+        dom.minEnemyTypesInput.value = settings.minEnemyTypes;
+        dom.maxEnemyTypesInput.value = settings.maxEnemyTypes;
+    } else {
+        dom.levelSettingsTitle.textContent = 'Level Generation Settings';
+        dom.adventureSettingsContainer.classList.remove('hidden');
+        dom.invasionSettingsContainer.classList.add('hidden');
+
+        let settings;
+        if (state.gameMode === 'trialRun') {
+            dom.generateLevelBtn.textContent = 'Apply Settings';
+            settings = state.trialRunLevelSettings;
+        } else { // adventureRun
+            dom.generateLevelBtn.textContent = 'Generate New Level';
+            settings = getLevelSettings(); // for adventure mode, the settings are always what's currently in the DOM.
+        }
+        
+        dom.seedInput.value = settings.seed ?? '';
+        dom.levelPatternSelect.value = settings.levelPattern;
+        dom.startingBallsInput.value = settings.startingBalls;
+        dom.ballSpeedInput.value = settings.ballSpeed;
+        dom.ballSpeedValue.textContent = settings.ballSpeed.toFixed(1);
+        dom.goalBricksInput.value = settings.goalBricks;
+        dom.goalBrickCountIncrementInput.value = settings.goalBrickCountIncrement;
+        dom.goalBrickCapInput.value = settings.goalBrickCap;
+        dom.goalBrickMaxHpInput.value = settings.goalBrickMaxHp;
+        dom.extraBallBricksInput.value = settings.extraBallBricks;
+        dom.explosiveBrickChanceInput.value = settings.explosiveBrickChance;
+        dom.explosiveBrickChanceValue.textContent = settings.explosiveBrickChance.toFixed(2);
+        dom.ballCageBrickChanceInput.value = settings.ballCageBrickChance;
+        dom.ballCageBrickChanceValue.textContent = settings.ballCageBrickChance.toFixed(2);
+        dom.brickCountInput.value = settings.brickCount;
+        dom.brickCountIncrementInput.value = settings.brickCountIncrement;
+        dom.maxBrickCountInput.value = settings.maxBrickCount;
+        dom.fewBrickLayoutChanceInput.value = settings.fewBrickLayoutChance;
+        dom.fewBrickLayoutChanceValue.textContent = settings.fewBrickLayoutChance.toFixed(2);
+        dom.fewBrickLayoutChanceMinLevelInput.value = settings.fewBrickLayoutChanceMinLevel;
+        dom.startingBrickHpInput.value = settings.startingBrickHp;
+        dom.brickHpIncrementInput.value = settings.brickHpIncrement;
+        dom.brickHpIncrementMultiplierInput.value = settings.brickHpIncrementMultiplier;
+        dom.maxBrickHpIncrementInput.value = settings.maxBrickHpIncrement;
+        dom.startingCoinInput.value = settings.startingCoin;
+        dom.coinIncrementInput.value = settings.coinIncrement;
+        dom.maxCoinInput.value = settings.maxCoin;
+        dom.bonusLevelIntervalInput.value = settings.bonusLevelInterval;
+        dom.minCoinBonusMultiplierInput.value = settings.minCoinBonusMultiplier;
+        dom.maxCoinBonusMultiplierInput.value = settings.maxCoinBonusMultiplier;
+        dom.builderBrickChanceInput.value = settings.builderBrickChance;
+        dom.healerBrickChanceInput.value = settings.healerBrickChance;
+    }
 }

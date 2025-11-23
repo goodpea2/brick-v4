@@ -1,3 +1,4 @@
+
 // text.js
 
 import { UNLOCK_LEVELS } from './balancing.js';
@@ -8,19 +9,24 @@ export const UNLOCK_DESCRIPTIONS = {
     [UNLOCK_LEVELS.COMBO_MINES]: "Combo System Unlocked! Hitting bricks builds a combo. High combos leave explosive mines on bricks for the next turn.",
     [UNLOCK_LEVELS.GEMS_SKILLTREE]: "Gems & Skill Tree Unlocked! Collect rare Gems 💎 from bricks and spend them on permanent upgrades in the Skill Tree (click the gem icon).",
     [UNLOCK_LEVELS.SPLIT_BALL]: "Split Ball Unlocked! Click while this ball is moving to split it into two mini-balls.",
-    [UNLOCK_LEVELS.EXPLOSIVE_BRICK]: "Explosive Bricks! Special orange bricks will now sometimes appear in levels.",
-    [UNLOCK_LEVELS.SHOP_BUY_BALL]: "Shop Upgrade! You can now purchase extra balls for the current run in the shop.",
+    [UNLOCK_LEVELS.EXPLOSIVE_BRICK]: "Explosive Bricks now sometimes appear in levels.",
+    [UNLOCK_LEVELS.SHOP_BUY_BALL]: "You can now purchase extra balls for the current run in the shop.",
     [UNLOCK_LEVELS.PIERCING_BALL]: "Piercing Ball Unlocked! Click while this ball is moving to make it phase through several bricks.",
-    [UNLOCK_LEVELS.EQUIPMENT]: "Equipment System Unlocked! Find special bricks to earn equipment and customize your balls with powerful passive abilities.",
+    [UNLOCK_LEVELS.EQUIPMENT]: "Equipment System Unlocked! Customize your balls with a variety of abilities.",
     [UNLOCK_LEVELS.STRIPE_BONUS]: "Combo Upgrade! High combos may now create powerful Stripe Bricks that clear entire lines.",
     [UNLOCK_LEVELS.BRICK_BALL]: "Brick Ball Unlocked! Click while this ball is moving to spawn a ring of 10-HP bricks.",
-    [UNLOCK_LEVELS.REWARD_GEMS_LVL_13]: "Level Reward: 10 💎",
+    [UNLOCK_LEVELS.HOME_BASE]: "Home Base Unlocked! End the Adventure Run to discover more.",
     [UNLOCK_LEVELS.GIANT_BONUS]: "ULTRA Combo! Very high combos now reward you with a consumable Giant Ball, which destroys everything in its path.",
     [UNLOCK_LEVELS.BULLET_BALL]: "Bullet Ball Unlocked! Click while this ball is moving to fire 4 piercing projectiles.",
     [UNLOCK_LEVELS.EQUIPMENT_SLOT_3]: "Advanced Customization! You can now unlock the third equipment slot for each ball.",
-    [UNLOCK_LEVELS.BALL_CAGE_BRICK]: "Ball Cage Bricks! High HP bricks now have a chance to spawn special cages. Break them to release a clone of your ball!",
+    [UNLOCK_LEVELS.INVASION_MODE]: "Invasion Defend Unlocked! Defend your base against waves of enemies.",
     [UNLOCK_LEVELS.HOMING_BALL]: "Homing Ball Unlocked! Click while this ball is moving to launch a projectile that seeks Goal bricks.",
-    [UNLOCK_LEVELS.SPECIAL_BRICKS]: "New Challenge! Special bricks will now appear: WoolBricks (immune to explosions) and ShieldGenBricks (protect other bricks)."
+    [UNLOCK_LEVELS.BALL_CAGE_BRICK]: "Ball Cage Bricks now spawns in Adventure Run!",
+    [UNLOCK_LEVELS.SPECIAL_BRICKS]: "New Challenge! Special bricks will now appear: WoolBricks (immune to explosions) and ShieldGenBricks (protect other bricks).",
+    [UNLOCK_LEVELS.ENCHANTMENT]: "Enchantment Unlocked! Use Enchanters found in Invasion Defend to permanently upgrade your balls.",
+    [UNLOCK_LEVELS.TRIAL_RUN]: "Trial Run Unlocked! Use your own balls to collect special materials.",
+    [UNLOCK_LEVELS.OVERLAY_SHOP]: "Overlays Unlocked! You can now purchase powerful overlays in the Home Base Shop.",
+    [UNLOCK_LEVELS.BRICK_UPGRADE]: "Brick Upgrading Unlocked! Level up your buildings to increase their efficiency.",
 };
 
 export const GAME_MODE_TEXT = {
@@ -29,10 +35,12 @@ export const GAME_MODE_TEXT = {
         loot: "Available loot: 💎🥕🪵"
     },
     trialRun: {
-        description: "Test your skills using consumable balls from your Home Base. No shop, no equipment.\nHighest level reached: {trialRunHighestLevelReached}",
+        description: "Test your skills using your own produced balls. No shop, no equipment.\nHighest level reached: {trialRunHighestLevelReached}",
+        loot: "Available loot: 💎🪨🪢🧊"
     },
     invasionDefend: {
-        description: "Defend your Home Base from waves of invaders. (Coming Soon!)",
+        description: "Defend your Home Base from waves of enemy balls.",
+        loot: "Available loot: 🌿🫘🧆"
     }
 };
 
@@ -138,11 +146,11 @@ export const HOME_BASE_TEXT = {
     },
     'Farmland': {
         name: 'Farmland',
-        description: 'Generates food on nearby bricks. Excess food is stored internally.',
+        description: 'Generates food on nearby bricks.',
     },
     'Sawmill': {
         name: 'Sawmill',
-        description: 'Grows Logs on adjacent empty tiles. Excess wood is stored internally.',
+        description: 'Grows Logs on empty nearby tiles.',
     },
     'FoodStorage': {
         name: 'Food Storage',
@@ -154,14 +162,20 @@ export const HOME_BASE_TEXT = {
     },
     'LogBrick': {
         name: 'Log Brick',
-        description: 'A resource brick worth 10 Wood. Grown by Sawmills and harvested by clicking.',
+        description: 'A resource brick worth 10 Wood.',
     },
     'BallProducer': {
         name: 'Ball Producer',
-        description: 'Produces a variety of consumable balls for a future game mode. Requires food and time.',
+        description: 'Produces balls for Trial Run.',
     },
     'EmptyCage': {
         name: 'Ball Cage',
-        description: 'Stores up to 3 consumable balls produced by a Ball Producer.',
+        description: 'Stores up to 3 balls produced by a Ball Producer.',
     }
+};
+
+export const OVERLAY_TEXT = {
+    'spike': { name: 'Spike Overlay', description: 'Damages enemies on contact.' },
+    'sniper': { name: 'Sniper Overlay', description: 'Shoots at enemies.' },
+    'laser': { name: 'Laser Overlay', description: 'Fires a laser beam each turn.' }
 };

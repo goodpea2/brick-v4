@@ -1,8 +1,11 @@
 // ui/domVfx.js
 import * as dom from '../dom.js';
+import { state } from '../state.js';
 
 export function animateCoinParticles(startX, startY, count) {
-    const targetRect = dom.coinBankEl.getBoundingClientRect();
+    const targetEl = (state.gameMode === 'adventureRun' || state.gameMode === 'invasionDefend') ? dom.runShopBtn : dom.coinBankEl;
+    if (!targetEl) return;
+    const targetRect = targetEl.getBoundingClientRect();
     const endX = targetRect.left + targetRect.width / 2;
     const endY = targetRect.top + targetRect.height / 2;
     for (let i = 0; i < Math.min(count, 20); i++) {
@@ -17,8 +20,9 @@ export function animateCoinParticles(startX, startY, count) {
 }
 
 export function animateFoodParticles(startX, startY, count) {
-    const targetRect = dom.foodBankEl.getBoundingClientRect();
-    if (!targetRect) return;
+    const targetEl = state.gameMode === 'adventureRun' ? dom.runFoodCount : dom.foodBankEl;
+    if (!targetEl) return;
+    const targetRect = targetEl.getBoundingClientRect();
     const endX = targetRect.left + targetRect.width / 2;
     const endY = targetRect.top + targetRect.height / 2;
     for (let i = 0; i < Math.min(count, 20); i++) {
@@ -33,8 +37,9 @@ export function animateFoodParticles(startX, startY, count) {
 }
 
 export function animateWoodParticles(startX, startY, count) {
-    const targetRect = dom.woodBankEl.getBoundingClientRect();
-    if (!targetRect) return;
+    const targetEl = state.gameMode === 'adventureRun' ? dom.runWoodCount : dom.woodBankEl;
+    if (!targetEl) return;
+    const targetRect = targetEl.getBoundingClientRect();
     const endX = targetRect.left + targetRect.width / 2;
     const endY = targetRect.top + targetRect.height / 2;
     for (let i = 0; i < Math.min(count, 20); i++) {

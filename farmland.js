@@ -3,7 +3,7 @@ import { BRICK_STATS } from './balancing.js';
 import { FlyingIcon } from './vfx.js';
 
 /**
- * Checks if there's any valid, non-full brick in range for any farmland, or if any farmland has internal capacity.
+ * Checks if there's any valid, non-full brick in range for any farmland.
  * @param {Array<Array<Brick>>} homeBaseBricks - The 2D matrix of bricks.
  * @param {object} board - The game board configuration.
  * @returns {boolean} - True if at least one farmland can produce, false otherwise.
@@ -29,9 +29,6 @@ export function canFarmlandProduce(homeBaseBricks, board) {
     if (farmlands.length === 0) return false;
 
     for (const farm of farmlands) {
-        if (farm.localResourceStorage < farm.localResourceCapacity) {
-            return true; // Can store internally
-        }
         const hasTarget = hostableBricks.some(host => {
             if (host.food >= host.maxFood) return false;
             const distSq = (farm.c - host.c)**2 + (farm.r - host.r)**2;
@@ -40,7 +37,7 @@ export function canFarmlandProduce(homeBaseBricks, board) {
         if (hasTarget) return true; // Found at least one farm that can produce externally
     }
 
-    return false; // No farmlands could find a target or store internally
+    return false; // No farmlands could find a target
 }
 
 /**
@@ -73,8 +70,6 @@ export function handleFarmlandGeneration(p, homeBaseBricks, board, flyingIcons, 
         const productionAmount = Math.floor(farm.internalResourcePool);
         if (productionAmount <= 0) return;
 
-        farm.internalResourcePool -= productionAmount;
-
         const eligibleBricks = hostableBricks.filter(host => {
             if (host.food >= host.maxFood) return false;
             const distSq = (farm.c - host.c)**2 + (farm.r - host.r)**2;
@@ -82,6 +77,8 @@ export function handleFarmlandGeneration(p, homeBaseBricks, board, flyingIcons, 
         });
 
         if (eligibleBricks.length > 0) {
+            farm.internalResourcePool -= productionAmount;
+
             eligibleBricks.sort((a, b) => a.food - b.food);
         
             for (let i = 0; i < productionAmount; i++) {
@@ -114,23 +111,11 @@ export function handleFarmlandGeneration(p, homeBaseBricks, board, flyingIcons, 
                     }
                 } else {
                     const remainingProduction = productionAmount - i;
-                    farm.internalResourcePool += remainingProduction;
+                    farm.internalResourcePool += remainingProduction; // Refund overflow
                     break; 
                 }
             }
-        } else {
-             // No external spots, try storing locally
-            const spaceInLocal = farm.localResourceCapacity - farm.localResourceStorage;
-            if (spaceInLocal > 0) {
-                const amountToStore = Math.min(productionAmount, spaceInLocal);
-                farm.localResourceStorage += amountToStore;
-                const remainingProduction = productionAmount - amountToStore;
-                if (remainingProduction > 0) {
-                    farm.internalResourcePool += remainingProduction; // Refund overflow
-                }
-            } else {
-                farm.internalResourcePool += productionAmount; // Refund all
-            }
         }
+        // If no eligible bricks, production pauses as internalResourcePool is not consumed.
     });
 }

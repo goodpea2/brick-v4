@@ -54,6 +54,12 @@ export function calculateBallDamage(ball, combo, state) {
         damage = BALL_STATS.types[equipmentSourceType].baseDamage;
     }
 
+    // Apply enchantment damage multiplier
+    const enchantmentData = state.ballEnchantments[equipmentSourceType];
+    if (enchantmentData) {
+        damage *= enchantmentData.damageMultiplier;
+    }
+
     equipment.forEach(item => {
         if (!item) return;
         switch (item.id) {
@@ -73,14 +79,15 @@ export function calculateBallDamage(ball, combo, state) {
 
 
 export class Projectile {
-    constructor(p, pos, vel, damage) {
+    constructor(p, pos, vel, damage, { piercesBricks = false } = {}) {
         this.p = p;
         this.pos = pos;
         this.vel = vel;
         this.damage = damage;
-        this.radius = 6; // 50% larger than 4
+        this.radius = 6;
         this.isDead = false;
         this.lifespan = 120; // Failsafe
+        this.piercesBricks = piercesBricks;
     }
 
     update(board, bricks) {
@@ -98,16 +105,18 @@ export class Projectile {
         }
 
         // Brick collision
-        const gridC = Math.floor((this.pos.x - board.genX) / board.gridUnitSize);
-        const gridR = Math.floor((this.pos.y - board.genY) / board.gridUnitSize);
+        if (!this.piercesBricks) {
+            const gridC = Math.floor((this.pos.x - board.genX) / board.gridUnitSize);
+            const gridR = Math.floor((this.pos.y - board.genY) / board.gridUnitSize);
 
-        if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
-            const brick = bricks[gridC][gridR];
-            if (brick) {
-                this.isDead = true;
-                const hitResult = brick.hit(this.damage, 'projectile', board);
-                if (hitResult) {
-                    return { type: 'brick_hit', ...hitResult, source: 'projectile' };
+            if (gridC >= 0 && gridC < board.cols && gridR >= 0 && gridR < board.rows) {
+                const brick = bricks[gridC][gridR];
+                if (brick) {
+                    this.isDead = true;
+                    const hitResult = brick.hit(this.damage, 'projectile', board);
+                    if (hitResult) {
+                        return { type: 'brick_hit', ...hitResult, source: 'projectile' };
+                    }
                 }
             }
         }
@@ -123,6 +132,33 @@ export class Projectile {
         // Draw rect centered at (0,0) after translation
         const height = 6; // 50% larger than 4
         this.p.rect(-this.radius, -height / 2, this.radius * 2, height);
+        this.p.pop();
+    }
+}
+
+export class SniperProjectile extends Projectile {
+    constructor(p, pos, vel, damage, { piercesBricks = true } = {}) {
+        super(p, pos, vel, damage, { piercesBricks });
+        this.radius = 16; // Longer than default (6)
+        this.color = p.color(255, 40, 40); // Red
+    }
+
+    draw() {
+        this.p.push();
+        this.p.translate(this.pos.x, this.pos.y);
+        this.p.rotate(this.vel.heading());
+        
+        const height = 4; // Thinner than default (6)
+
+        // Glow
+        this.p.noStroke();
+        this.p.fill(255, 100, 100, 100);
+        this.p.rect(-this.radius - 2, -height, (this.radius + 2) * 2, height * 2);
+
+        // Core bullet
+        this.p.fill(this.color);
+        this.p.rect(-this.radius, -height / 2, this.radius * 2, height);
+
         this.p.pop();
     }
 }
@@ -286,7 +322,13 @@ export class Ball {
         this.vel = p.createVector(0, 0); 
         this.isMoving = false; 
         
-        this.maxHp = (BALL_STATS.types[type]?.hp ?? 100);
+        const enchantmentData = state.ballEnchantments[type];
+        let hpMultiplier = 1.0;
+        if (enchantmentData) {
+            hpMultiplier = enchantmentData.hpMultiplier;
+        }
+
+        this.maxHp = (BALL_STATS.types[type]?.hp ?? 100) * hpMultiplier;
         if (type !== 'giant') {
             this.maxHp += (stats.extraBallHp ?? 0);
         }
@@ -305,6 +347,23 @@ export class Ball {
         this.lastHit = { target: 'none', side: 'none' }; // For debug view
         this.overflowApplied = false;
         this.hitHistory = [];
+        
+        // Add enchantment-specific properties to the ball instance
+        if (enchantmentData) {
+            this.bonusChainDamage = enchantmentData.bonusChainDamage || 0;
+            this.bonusEnergyShieldDuration = enchantmentData.bonusEnergyShieldDuration || 0;
+            this.bonusMainBallArmor = enchantmentData.bonusMainBallArmor || 0;
+            this.bonusPowerUpMineCount = enchantmentData.bonusPowerUpMineCount || 0;
+            this.bonusLastPowerUpBulletCount = enchantmentData.bonusLastPowerUpBulletCount || 0;
+            this.bonusHomingExplosionDamage = enchantmentData.bonusHomingExplosionDamage || 0;
+        } else {
+            this.bonusChainDamage = 0;
+            this.bonusEnergyShieldDuration = 0;
+            this.bonusMainBallArmor = 0;
+            this.bonusPowerUpMineCount = 0;
+            this.bonusLastPowerUpBulletCount = 0;
+            this.bonusHomingExplosionDamage = 0;
+        }
         
         this.radius = gridUnitSize * (BALL_STATS.types[type]?.radiusMultiplier ?? 0.32);
 
@@ -421,7 +480,12 @@ export class Ball {
         if (this.isGhost) return null; // No damage to ghosts
         if (this.isPiercing && source === 'brick') return null;
 
-        const damageDealt = amount;
+        let finalDamage = amount;
+        if (this.type === 'split' && this.bonusMainBallArmor > 0) {
+            finalDamage = Math.max(0, amount - this.bonusMainBallArmor);
+        }
+
+        const damageDealt = finalDamage;
         let damageEvent = { type: 'damage_taken', source, ballType: this.type, damageAmount: damageDealt, position: position.copy() };
         
         return damageEvent;
@@ -438,8 +502,23 @@ export class Ball {
         const ballTypeStats = BALL_STATS.types[this.type];
 
         switch(this.type) {
-            case 'explosive': powerUpResult.effect = { type: 'explode', pos: this.pos.copy(), radius: this.gridUnitSize * ballTypeStats.radiusTiles }; break;
-            case 'piercing': this.isPiercing = true; this.piercingContactsLeft = ballTypeStats.contactCount; this.piercedBricks.clear(); powerUpResult.sound = 'piercingActivate'; break;
+            case 'explosive': {
+                const enchantmentData = state.ballEnchantments[this.type];
+                const enchantmentBonusRadius = enchantmentData?.bonusPowerUpValue || 0;
+                powerUpResult.effect = { type: 'explode', pos: this.pos.copy(), radius: this.gridUnitSize * (ballTypeStats.radiusTiles + enchantmentBonusRadius) };
+                break;
+            }
+            case 'piercing':
+                this.isPiercing = true;
+                this.piercingContactsLeft = ballTypeStats.contactCount;
+                this.piercedBricks.clear();
+                powerUpResult.sound = 'piercingActivate';
+                const shieldDuration = this.bonusEnergyShieldDuration || 0;
+                if (shieldDuration > 0) {
+                    // Stacks with equipment by taking the longer duration
+                    state.invulnerabilityTimer = Math.max(state.invulnerabilityTimer, shieldDuration * 60);
+                }
+                break;
             case 'split':
                 const miniballs = [];
                 const count = ballTypeStats.miniBallCount;
@@ -453,10 +532,11 @@ export class Ball {
                 powerUpResult.sound = 'split';
                 break;
             case 'brick':
-                powerUpResult.effect = { type: 'spawn_bricks', center: this.pos.copy(), coinChance: this.stats.brickSummonCoinChance };
+                 const bonusMines = this.bonusPowerUpMineCount || 0;
+                powerUpResult.effect = { type: 'spawn_bricks', center: this.pos.copy(), coinChance: this.stats.brickSummonCoinChance, bonusMines };
                 powerUpResult.sound = 'brickSpawn';
                 break;
-            case 'bullet':
+            case 'bullet': {
                 const speed = this.gridUnitSize * ballTypeStats.speedMultiplier;
                 const damage = this.stats.bulletDamage;
                 const gridC = Math.round((this.pos.x - board.genX) / this.gridUnitSize);
@@ -464,18 +544,29 @@ export class Ball {
                 const spawnX = board.genX + gridC * this.gridUnitSize + this.gridUnitSize / 2;
                 const spawnY = board.genY + gridR * this.gridUnitSize + this.gridUnitSize / 2;
                 const spawnPos = this.p.createVector(spawnX, spawnY);
+                const newProjectiles = [
+                    new Projectile(this.p, spawnPos.copy(), this.p.createVector(0, -speed), damage),
+                    new Projectile(this.p, spawnPos.copy(), this.p.createVector(0, speed), damage),
+                    new Projectile(this.p, spawnPos.copy(), this.p.createVector(-speed, 0), damage),
+                    new Projectile(this.p, spawnPos.copy(), this.p.createVector(speed, 0), damage),
+                ];
 
-                powerUpResult.effect = {
-                    type: 'spawn_projectiles',
-                    projectiles: [
-                        new Projectile(this.p, spawnPos.copy(), this.p.createVector(0, -speed), damage),
-                        new Projectile(this.p, spawnPos.copy(), this.p.createVector(0, speed), damage),
-                        new Projectile(this.p, spawnPos.copy(), this.p.createVector(-speed, 0), damage),
-                        new Projectile(this.p, spawnPos.copy(), this.p.createVector(speed, 0), damage),
-                    ]
-                };
+                // Enchantment: Last use extra projectiles
+                if (this.powerUpUses === 0) { // Check if this was the last use
+                    const extraBullets = this.bonusLastPowerUpBulletCount || 0;
+                    if (extraBullets > 0) {
+                        for (let i = 0; i < extraBullets; i++) {
+                            const angle = (this.p.PI / 2) * i + (this.p.PI / 4); // Diagonal angles
+                            const newVel = this.p.constructor.Vector.fromAngle(angle).mult(speed);
+                            newProjectiles.push(new Projectile(this.p, spawnPos.copy(), newVel, damage));
+                        }
+                    }
+                }
+
+                powerUpResult.effect = { type: 'spawn_projectiles', projectiles: newProjectiles };
                 powerUpResult.sound = 'bulletFire';
                 break;
+            }
             case 'homing':
                 powerUpResult.effect = { type: 'spawn_homing_projectile' };
                 powerUpResult.sound = 'homingLaunch';

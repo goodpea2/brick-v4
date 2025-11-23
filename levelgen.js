@@ -1,7 +1,8 @@
+
 // levelgen.js
 
 import { Brick } from './brick.js';
-import { BRICK_STATS, UNLOCK_LEVELS } from './balancing.js';
+import { BRICK_STATS, UNLOCK_LEVELS, DEFAULT_LEVEL_SETTINGS } from './balancing.js';
 import { state } from './state.js';
 import * as event from './eventManager.js';
 
@@ -90,6 +91,9 @@ function processBrickMerging(p, brickMatrix, hpPool, board) {
 
 
 export function generateLevel(p, settings, level, board) {
+    // --- Create a local copy of settings to modify for this generation only ---
+    const effectiveSettings = { ...DEFAULT_LEVEL_SETTINGS, ...settings };
+
     // --- Room Logic Application ---
     const roomType = state.nextRoomType;
     let gemBonus = 0;
@@ -102,42 +106,42 @@ export function generateLevel(p, settings, level, board) {
     if (state.gameMode === 'adventureRun' && roomType !== 'normal') {
         switch (roomType) {
             case 'gem':
-                settings.extraBallBricks = 0;
+                effectiveSettings.extraBallBricks = 0;
                 gemBonus = 5;
                 break;
             case 'food':
-                let coinPoolForFood = p.min(settings.maxCoin, settings.startingCoin + (level - 1) * settings.coinIncrement);
-                if (level > 1 && level % settings.bonusLevelInterval === 0) { 
-                    coinPoolForFood = Math.floor(coinPoolForFood * p.random(settings.minCoinBonusMultiplier, settings.maxCoinBonusMultiplier)); 
+                let coinPoolForFood = p.min(effectiveSettings.maxCoin, effectiveSettings.startingCoin + (level - 1) * effectiveSettings.coinIncrement);
+                if (level > 1 && level % effectiveSettings.bonusLevelInterval === 0) { 
+                    coinPoolForFood = Math.floor(coinPoolForFood * p.random(effectiveSettings.minCoinBonusMultiplier, effectiveSettings.maxCoinBonusMultiplier)); 
                 }
-                foodPoolOverride = coinPoolForFood * 2;
-                settings.startingCoin = 0;
-                settings.coinIncrement = 0;
+                foodPoolOverride = coinPoolForFood * 3;
+                effectiveSettings.startingCoin = 0;
+                effectiveSettings.coinIncrement = 0;
                 break;
             case 'wood':
-                let coinPoolForWood = p.min(settings.maxCoin, settings.startingCoin + (level - 1) * settings.coinIncrement);
-                if (level > 1 && level % settings.bonusLevelInterval === 0) { 
-                    coinPoolForWood = Math.floor(coinPoolForWood * p.random(settings.minCoinBonusMultiplier, settings.maxCoinBonusMultiplier)); 
+                let coinPoolForWood = p.min(effectiveSettings.maxCoin, effectiveSettings.startingCoin + (level - 1) * effectiveSettings.coinIncrement);
+                if (level > 1 && level % effectiveSettings.bonusLevelInterval === 0) { 
+                    coinPoolForWood = Math.floor(coinPoolForWood * p.random(effectiveSettings.minCoinBonusMultiplier, effectiveSettings.maxCoinBonusMultiplier)); 
                 }
                 woodLogSpawnCount = Math.floor(coinPoolForWood / 4);
-                settings.startingCoin = 0;
-                settings.coinIncrement = 0;
+                effectiveSettings.startingCoin = 0;
+                effectiveSettings.coinIncrement = 0;
                 break;
             case 'lucky':
                 const luckyRoll = p.random();
                 if (luckyRoll < 0.33) {
                     forceEquipmentBrick = true;
                 } else if (luckyRoll < 0.66) {
-                    settings.explosiveBrickChance *= 3;
+                    effectiveSettings.explosiveBrickChance *= 3;
                 } else {
-                    settings.extraBallBricks += 2;
+                    effectiveSettings.extraBallBricks += 2;
                 }
                 break;
             case 'danger':
                 const dangerRoll = p.random();
                 if (dangerRoll < 0.5) {
-                    settings.startingBrickHp *= 2;
-                    settings.brickHpIncrement *= 2;
+                    effectiveSettings.startingBrickHp *= 2;
+                    effectiveSettings.brickHpIncrement *= 2;
                     gemBonus = 3;
                 } else {
                     dangerRoomZapperChance = 1.0;
@@ -152,30 +156,27 @@ export function generateLevel(p, settings, level, board) {
     // --- Step 1: Initialization ---
     const { cols, rows, gridUnitSize } = board;
     let brickMatrix = Array(cols).fill(null).map(() => Array(rows).fill(null));
-    const currentSeed = (settings.seed !== null && !isNaN(settings.seed)) ? settings.seed : p.floor(p.random(1000000));
+    const currentSeed = (effectiveSettings.seed !== null && !isNaN(effectiveSettings.seed)) ? effectiveSettings.seed : p.floor(p.random(1000000));
     p.randomSeed(currentSeed);
 
     // --- Step 2: Calculate Level-Based Parameters ---
-    let currentBrickHpPool = settings.startingBrickHp;
+    let currentBrickHpPool = effectiveSettings.startingBrickHp;
     const calculatePoolForLevel = (lvl) => {
-        if (lvl <= 1) return settings.startingBrickHp;
-        return (settings.startingBrickHp + (lvl - 1) * settings.brickHpIncrement) * Math.pow(settings.brickHpIncrementMultiplier, lvl - 1);
+        if (lvl <= 1) return effectiveSettings.startingBrickHp;
+        return (effectiveSettings.startingBrickHp + (lvl - 1) * effectiveSettings.brickHpIncrement) * Math.pow(effectiveSettings.brickHpIncrementMultiplier, lvl - 1);
     };
     for (let i = 2; i <= level; i++) {
         const poolForLevelI = calculatePoolForLevel(i);
         const increase = poolForLevelI - currentBrickHpPool;
-        if (increase > settings.maxBrickHpIncrement) {
-            currentBrickHpPool += settings.maxBrickHpIncrement;
+        if (increase > effectiveSettings.maxBrickHpIncrement) {
+            currentBrickHpPool += effectiveSettings.maxBrickHpIncrement;
         } else {
             currentBrickHpPool = poolForLevelI;
         }
     }
-    let currentCoinPool = p.min(settings.maxCoin, settings.startingCoin + (level - 1) * settings.coinIncrement);
-    if (level > 1 && level % settings.bonusLevelInterval === 0) { 
-        currentCoinPool = Math.floor(currentCoinPool * p.random(settings.minCoinBonusMultiplier, settings.maxCoinBonusMultiplier)); 
-    }
-    let brickCountTarget = Math.floor(p.min(settings.maxBrickCount, settings.brickCount + (level - 1) * settings.brickCountIncrement));
-    if (level >= settings.fewBrickLayoutChanceMinLevel && p.random() < settings.fewBrickLayoutChance) {
+    
+    let brickCountTarget = Math.floor(p.min(effectiveSettings.maxBrickCount, effectiveSettings.brickCount + (level - 1) * effectiveSettings.brickCountIncrement));
+    if (level >= effectiveSettings.fewBrickLayoutChanceMinLevel && p.random() < effectiveSettings.fewBrickLayoutChance) {
         brickCountTarget = Math.floor(brickCountTarget * 0.2);
     }
     const allPossibleCoords = [];
@@ -193,7 +194,7 @@ export function generateLevel(p, settings, level, board) {
     let equipmentBrickSpawned = false;
     const shouldSpawnEquipment = (state.mainLevel >= UNLOCK_LEVELS.EQUIPMENT && p.random() < state.equipmentBrickSpawnChance) || forceEquipmentBrick;
     if (shouldSpawnEquipment) {
-        if (!forceEquipmentBrick) state.equipmentBrickSpawnChance = settings.equipmentBrickInitialChance; // Reset chance if it was random
+        if (!forceEquipmentBrick) state.equipmentBrickSpawnChance = effectiveSettings.equipmentBrickInitialChance; // Reset chance if it was random
         
         const possibleCenterCoords = [];
         for (let r = 1; r < rows - 1; r++) {
@@ -235,13 +236,13 @@ export function generateLevel(p, settings, level, board) {
              equipmentBrickSpawned = false;
         }
     } else if (state.mainLevel >= UNLOCK_LEVELS.EQUIPMENT) {
-        state.equipmentBrickSpawnChance += settings.equipmentBrickChancePerLevel;
+        state.equipmentBrickSpawnChance += effectiveSettings.equipmentBrickChancePerLevel;
         equipmentBrickSpawned = false;
     }
 
     // --- Step 4: Place Special Bricks ---
-    const totalGoalBrickValue = Math.floor(settings.goalBricks + (level - 1) * settings.goalBrickCountIncrement);
-    const actualBricksToPlace = Math.min(totalGoalBrickValue, settings.goalBrickCap);
+    const totalGoalBrickValue = Math.floor(effectiveSettings.goalBricks + (level - 1) * effectiveSettings.goalBrickCountIncrement);
+    const actualBricksToPlace = Math.min(totalGoalBrickValue, effectiveSettings.goalBrickCap);
     const excessBricks = totalGoalBrickValue - actualBricksToPlace;
     const placedGoalBricks = [];
     for (let i = 0; i < actualBricksToPlace; i++) { 
@@ -258,7 +259,7 @@ export function generateLevel(p, settings, level, board) {
         let hasFoundBrick = false;
         const initialIndex = currentGoalBrickIndex;
         while (!hasFoundBrick) {
-            if (placedGoalBricks[currentGoalBrickIndex] && placedGoalBricks[currentGoalBrickIndex].health < settings.goalBrickMaxHp) {
+            if (placedGoalBricks[currentGoalBrickIndex] && placedGoalBricks[currentGoalBrickIndex].health < effectiveSettings.goalBrickMaxHp) {
                 hasFoundBrick = true;
             } else {
                 currentGoalBrickIndex = (currentGoalBrickIndex + 1) % placedGoalBricks.length;
@@ -270,14 +271,14 @@ export function generateLevel(p, settings, level, board) {
         brickToBuff.health += 10;
         brickToBuff.maxHealth += 10;
     }
-    for (let i = 0; i < settings.extraBallBricks; i++) {
+    for (let i = 0; i < effectiveSettings.extraBallBricks; i++) {
         const spot = takeNextAvailableCoord();
         if (spot) brickMatrix[spot.c][spot.r] = new Brick(p, spot.c - 6, spot.r - 6, 'extraBall', 10, gridUnitSize);
     }
 
     // --- Step 5: Place Normal Bricks ---
     let normalBrickCoords = [];
-    if (settings.levelPattern === 'formulaic') {
+    if (effectiveSettings.levelPattern === 'formulaic') {
          while (normalBrickCoords.length < brickCountTarget) {
             const formulaPoints = generateSingleFormulaPoints(p, cols, rows);
             p.shuffle(formulaPoints, true); 
@@ -293,9 +294,9 @@ export function generateLevel(p, settings, level, board) {
          }
     } else {
          let patternCoords = [];
-         if (settings.levelPattern === 'solid') for (let r = 0; r < Math.floor(rows / 2); r++) for (let c = 1; c < cols - 1; c++) patternCoords.push({ c, r: r + 2 });
-         else if (settings.levelPattern === 'checkerboard') for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if ((r + c) % 2 === 0) patternCoords.push({ c, r });
-         else if (settings.levelPattern === 'spiral') { let x = 0, y = 0, dx = 0, dy = -1, n = Math.max(cols, rows); for (let i = 0; i < n * n; i++) { let gridC = Math.floor(cols / 2) + x, gridR = Math.floor(rows / 2) + y; if (gridC >= 0 && gridC < cols && gridR >= 0 && gridR < rows) if (i % 3 === 0) patternCoords.push({ c: gridC, r: gridR }); if (x === y || (x < 0 && x === -y) || (x > 0 && x === 1 - y)) [dx, dy] = [-dy, dx]; x += dx; y += dy; } }
+         if (effectiveSettings.levelPattern === 'solid') for (let r = 0; r < Math.floor(rows / 2); r++) for (let c = 1; c < cols - 1; c++) patternCoords.push({ c, r: r + 2 });
+         else if (effectiveSettings.levelPattern === 'checkerboard') for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if ((r + c) % 2 === 0) patternCoords.push({ c, r });
+         else if (effectiveSettings.levelPattern === 'spiral') { let x = 0, y = 0, dx = 0, dy = -1, n = Math.max(cols, rows); for (let i = 0; i < n * n; i++) { let gridC = Math.floor(cols / 2) + x, gridR = Math.floor(rows / 2) + y; if (gridC >= 0 && gridC < cols && gridR >= 0 && gridR < rows) if (i % 3 === 0) patternCoords.push({ c: gridC, r: gridR }); if (x === y || (x < 0 && x === -y) || (x > 0 && x === 1 - y)) [dx, dy] = [-dy, dx]; x += dx; y += dy; } }
          else { patternCoords = allPossibleCoords; }
          p.shuffle(patternCoords, true);
          for(const coord of patternCoords) { 
@@ -310,7 +311,7 @@ export function generateLevel(p, settings, level, board) {
     normalBrickCoords.forEach(spot => {
         if((hpPlacedSoFar + 10) <= currentBrickHpPool) {
             let type = 'normal';
-            if (p.random() < settings.explosiveBrickChance) type = 'explosive';
+            if (state.mainLevel >= UNLOCK_LEVELS.EXPLOSIVE_BRICK && p.random() < effectiveSettings.explosiveBrickChance) type = 'explosive';
             const newBrick = new Brick(p, spot.c - 6, spot.r - 6, type, 10, gridUnitSize);
             brickMatrix[spot.c][spot.r] = newBrick;
             hpPlacedSoFar += 10;
@@ -323,7 +324,7 @@ export function generateLevel(p, settings, level, board) {
 
     // --- 6a: Initial WoolBrick Spawn ---
     const woolSpawnChance = Math.min(0.65, level * 0.03);
-    if (p.random() < woolSpawnChance) {
+    if (state.mainLevel >= UNLOCK_LEVELS.SPECIAL_BRICKS && p.random() < woolSpawnChance) {
         const woolPoints = new Set(); // Use a Set to avoid duplicates
         const isHorizontal = p.random() > 0.5;
         const length = p.floor(p.random(5, 9));
@@ -436,21 +437,55 @@ export function generateLevel(p, settings, level, board) {
             const builderCost = BRICK_STATS.builder.baseCost + brickToOverlay.health * (BRICK_STATS.builder.costPer10Hp / 10);
             const healerCost = BRICK_STATS.healer.baseCost + brickToOverlay.health * (BRICK_STATS.healer.costPer10Hp / 10);
 
+            // New overlay chances and level requirements
+            const spikeChance = (level >= effectiveSettings.overlaySpawnLevels.spike) ? 0.05 : 0;
+            const sniperChance = (level >= effectiveSettings.overlaySpawnLevels.sniper) ? 0.02 : 0;
+            const laserChance = (level >= effectiveSettings.overlaySpawnLevels.laser) ? 0.02 : 0;
+
+            // Calculate costs for new overlays
+            const spikeCost = BRICK_STATS.spike.baseCost + brickToOverlay.health * (BRICK_STATS.spike.costPer10Hp / 10);
+            const sniperCost = BRICK_STATS.sniper.baseCost + brickToOverlay.health * (BRICK_STATS.sniper.costPer10Hp / 10);
+            const laserCost = BRICK_STATS.laser.baseCost + brickToOverlay.health * (BRICK_STATS.laser.costPer10Hp / 10);
+            
+            // Cumulative chances
+            const builderCml = effectiveSettings.builderBrickChance;
+            const healerCml = builderCml + effectiveSettings.healerBrickChance;
+            const spikeCml = healerCml + spikeChance;
+            const sniperCml = spikeCml + sniperChance;
+            const laserCml = sniperCml + laserChance;
+
             let overlayPlaced = null;
-            if (rand < settings.builderBrickChance && hpToDistribute >= builderCost) {
+            if (rand < builderCml && hpToDistribute >= builderCost) {
                 brickToOverlay.overlay = 'builder';
                 hpToDistribute -= builderCost;
                 converted = true;
                 overlayPlaced = 'builder';
-            } else if (rand < settings.builderBrickChance + settings.healerBrickChance && hpToDistribute >= healerCost) {
+            } else if (rand < healerCml && hpToDistribute >= healerCost) {
                 brickToOverlay.overlay = 'healer';
                 hpToDistribute -= healerCost;
                 converted = true;
                 overlayPlaced = 'healer';
+            } else if (rand < spikeCml && hpToDistribute >= spikeCost) {
+                brickToOverlay.overlay = 'spike';
+                brickToOverlay.retaliateDamage = BRICK_STATS.spike.damage;
+                hpToDistribute -= spikeCost;
+                converted = true;
+                overlayPlaced = 'spike';
+            } else if (rand < sniperCml && hpToDistribute >= sniperCost) {
+                brickToOverlay.overlay = 'sniper';
+                brickToOverlay.sniperCharge = 0;
+                hpToDistribute -= sniperCost;
+                converted = true;
+                overlayPlaced = 'sniper';
+            } else if (rand < laserCml && hpToDistribute >= laserCost) {
+                brickToOverlay.overlay = 'laser';
+                hpToDistribute -= laserCost;
+                converted = true;
+                overlayPlaced = 'laser';
             }
 
             if (overlayPlaced) {
-                if (p.random() < 0.1) placeShieldGenNext = true;
+                if (state.mainLevel >= UNLOCK_LEVELS.SPECIAL_BRICKS && p.random() < 0.1) placeShieldGenNext = true;
                 if (p.random() < 0.05) { // 5% chance to spawn extra ZapBattery
                     let zapperBrick = null, zapBatteries = [];
                     for(let c=0;c<cols;c++) for(let r=0;r<rows;r++) {
@@ -481,7 +516,7 @@ export function generateLevel(p, settings, level, board) {
                         }
                     }
                 }
-                if (p.random() < 0.1 && woolBrickGraphCoords.length > 0) {
+                if (state.mainLevel >= UNLOCK_LEVELS.SPECIAL_BRICKS && p.random() < 0.1 && woolBrickGraphCoords.length > 0) {
                     let addedCount = 0;
                     let attempts = 0;
                     while(addedCount < 3 && attempts < 20) {
@@ -523,7 +558,7 @@ export function generateLevel(p, settings, level, board) {
         }
 
         if (!converted) {
-            if (placeShieldGenNext) {
+            if (placeShieldGenNext && state.mainLevel >= UNLOCK_LEVELS.SPECIAL_BRICKS) {
                 const potentialTargets = normalAndExtraBallBricks.filter(b => b.type === 'normal' && !b.overlay);
                 if (potentialTargets.length > 0) {
                     const brickToReplace = p.random(potentialTargets);
@@ -592,11 +627,11 @@ export function generateLevel(p, settings, level, board) {
             brickMatrix[spot.c][spot.r] = newBrick;
         }
     }
-    if (settings.ballCageBrickChance > 0) {
+    if (state.mainLevel >= UNLOCK_LEVELS.BALL_CAGE_BRICK && effectiveSettings.ballCageBrickChance > 0) {
         const bricksToCheck = [];
         for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) if (brickMatrix[c][r]) bricksToCheck.push(brickMatrix[c][r]);
         bricksToCheck.forEach(brick => {
-            if (brick.health >= 100 && p.random() < settings.ballCageBrickChance) {
+            if (brick.health >= 100 && p.random() < effectiveSettings.ballCageBrickChance) {
                 const emptySpot = takeNextAvailableCoord();
                 if (emptySpot) brickMatrix[emptySpot.c][emptySpot.r] = new Brick(p, emptySpot.c - 6, emptySpot.r - 6, 'ballCage', 10, gridUnitSize);
             }
@@ -608,12 +643,9 @@ export function generateLevel(p, settings, level, board) {
     // --- Step 9: Distribute Coin & Gem Pools ---
     let gemPool = 0;
     if (state.mainLevel >= UNLOCK_LEVELS.GEMS_SKILLTREE) {
-        const totalBricksPlaced = actualBricksToPlace + settings.extraBallBricks + normalBrickCoords.length;
+        const totalBricksPlaced = actualBricksToPlace + effectiveSettings.extraBallBricks + normalBrickCoords.length;
         for (let i = 0; i < totalBricksPlaced; i++) {
             if (p.random() < 0.01) gemPool++;
-        }
-        if ((level - 1) % 5 === 0 && level > 1) {
-            gemPool += 0; // no longer guarantees Gems on level 6,11,16,, etc.
         }
     }
     gemPool += gemBonus;
@@ -632,16 +664,22 @@ export function generateLevel(p, settings, level, board) {
         }
         if (foodEligibleBricks.length > 0) {
             let foodToDistribute = foodPoolOverride;
-            while(foodToDistribute > 0) {
-                const brickForFood = p.random(foodEligibleBricks);
-                if (brickForFood.food < brickForFood.maxFood) {
-                    brickForFood.food++;
-                    foodToDistribute--;
-                }
-                if (foodEligibleBricks.every(b => b.food >= b.maxFood)) break;
+            while (foodToDistribute > 0) {
+                const brickForFood = foodEligibleBricks[p.floor(p.random(foodEligibleBricks.length))];
+                // Distribute in chunks for better performance and distribution, mirroring coin logic
+                const foodToAdd = p.min(foodToDistribute, Math.max(1, p.floor(p.random(2, 5)) * (brickForFood.health / 10)));
+                brickForFood.food += foodToAdd;
+                brickForFood.maxFood += foodToAdd;
+                foodToDistribute -= foodToAdd;
+                if (foodEligibleBricks.every(b => b.food > 1000)) break; // Failsafe
             }
         }
     } else {
+        let currentCoinPool = p.min(effectiveSettings.maxCoin, effectiveSettings.startingCoin + (level - 1) * effectiveSettings.coinIncrement);
+        if (level > 1 && level % effectiveSettings.bonusLevelInterval === 0) { 
+            currentCoinPool = Math.floor(currentCoinPool * p.random(effectiveSettings.minCoinBonusMultiplier, effectiveSettings.maxCoinBonusMultiplier)); 
+        }
+
         const coinEligibleBricks = [];
         const uniqueBricks = new Set();
         for (let c = 0; c < cols; c++) {
@@ -657,11 +695,10 @@ export function generateLevel(p, settings, level, board) {
             let coinsToDistribute = currentCoinPool;
             while (coinsToDistribute > 0) {
                 const brickForCoins = coinEligibleBricks[p.floor(p.random(coinEligibleBricks.length))];
-                const coinsToAdd = p.min(coinsToDistribute, p.floor(p.random(2, 5)) * (brickForCoins.health / 10));
+                const coinsToAdd = p.min(coinsToDistribute, Math.max(1, p.floor(p.random(2, 5)) * (brickForCoins.health / 10)));
                 brickForCoins.coins += coinsToAdd;
                 brickForCoins.maxCoins += coinsToAdd;
                 coinsToDistribute -= coinsToAdd;
-                if (coinsToDistribute <= 0) break;
                 if (coinEligibleBricks.every(b => b.coins > 1000)) break;
             }
         }
@@ -669,11 +706,13 @@ export function generateLevel(p, settings, level, board) {
     
     const gemEligibleBricks = [];
     const uniqueGemBricks = new Set();
-    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
-        const brick = brickMatrix[c][r];
-        if (brick && BRICK_STATS.canCarryGem[brick.type] && !uniqueGemBricks.has(brick)) {
-            gemEligibleBricks.push(brick);
-            uniqueGemBricks.add(brick);
+    for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+            const brick = brickMatrix[c][r];
+            if (brick && BRICK_STATS.canCarryGem[brick.type] && !uniqueGemBricks.has(brick)) {
+                gemEligibleBricks.push(brick);
+                uniqueGemBricks.add(brick);
+            }
         }
     }
     if (gemEligibleBricks.length > 0 && gemPool > 0) {
@@ -719,9 +758,9 @@ export function generateLevel(p, settings, level, board) {
                     b.gemIndicatorPositions = [];
                     for (let i = 0; i < p.min(b.maxGems, 20); i++) b.gemIndicatorPositions.push(p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
                 }
-                 if (b.food > 0) {
+                 if (b.maxFood > 0) {
                     b.foodIndicatorPositions = [];
-                    for (let i = 0; i < p.min(b.maxFood, 20); i++) b.foodIndicatorPositions.push(p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
+                    for (let i = 0; i < 10; i++) b.foodIndicatorPositions.push(p.createVector(p.random(b.size * 0.1, b.size * 0.9), p.random(b.size * 0.1, b.size * 0.9)));
                 }
             }
         }
@@ -740,7 +779,7 @@ export function generateLevel(p, settings, level, board) {
         seed: currentSeed,
         hpPool: currentBrickHpPool,
         hpPoolSpent,
-        coinPool: currentCoinPool,
+        coinPool: effectiveSettings.startingCoin + (level - 1) * effectiveSettings.coinIncrement,
         gemPool: gemPool,
         equipmentBrickSpawned,
     };

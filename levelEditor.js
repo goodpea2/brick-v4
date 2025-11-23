@@ -1,3 +1,4 @@
+
 // levelEditor.js
 import { state } from './state.js';
 import * as dom from './dom.js';
@@ -7,6 +8,7 @@ import { BRICK_STATS } from './balancing.js';
 import { Shockwave } from './vfx.js';
 import { renderGame } from './render.js';
 import * as ui from './ui/index.js';
+import { OVERLAY_LEVELING_DATA } from './brickLeveling.js';
 
 let gameController = null;
 let undoStack = [];
@@ -15,84 +17,139 @@ let editorModifiedTiles = new Set();
 let isPainting = false;
 
 function updateHomeBaseEditorPanel() {
+    if (!dom.editorBricksContainer) return;
     dom.editorBricksContainer.innerHTML = '';
     
-    // Sort inventory for consistent display order
-    state.homeBaseInventory.sort((a, b) => {
-        if (a.type < b.type) return -1;
-        if (a.type > b.type) return 1;
-        return a.level - b.level;
-    });
-
-    state.homeBaseInventory.forEach((item, index) => {
-        const btn = document.createElement('button');
-        btn.className = 'editor-btn';
-        btn.dataset.inventoryIndex = index;
-        btn.disabled = item.count === 0 && state.editorTool === 'place';
-
-        // Styling for flex layout
-        btn.style.display = 'flex';
-        btn.style.flexDirection = 'column';
-        btn.style.alignItems = 'center';
-        btn.style.justifyContent = 'center';
-        btn.style.gap = '5px';
-        btn.style.padding = '8px';
-        
-        btn.innerHTML = '';
-        
-        const visual = ui.createBrickVisual({ type: item.type, level: item.level, health: 10 });
-        visual.style.width = '30px';
-        visual.style.height = '30px';
-        visual.style.flexShrink = '0';
-
-        const textContainer = document.createElement('div');
-        textContainer.style.lineHeight = '1.2';
-
-        const levelText = document.createElement('div');
-        levelText.textContent = `Lv.${item.level}`;
-        levelText.style.fontSize = '10px';
-
-        const countText = document.createElement('div');
-        countText.textContent = `x${item.count}`;
-        
-        textContainer.appendChild(levelText);
-        textContainer.appendChild(countText);
-
-        btn.appendChild(visual);
-        btn.appendChild(textContainer);
-
-        btn.addEventListener('click', () => {
-            sounds.buttonClick();
-            setState('object_index', index);
+    // --- 1. Render Bricks (Stacks) ---
+    if (state.homeBaseInventory) {
+        state.homeBaseInventory.sort((a, b) => {
+            if (a.type < b.type) return -1;
+            if (a.type > b.type) return 1;
+            return a.level - b.level;
         });
-        
-        dom.editorBricksContainer.appendChild(btn);
-    });
+
+        state.homeBaseInventory.forEach((item, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'editor-btn';
+            btn.dataset.inventoryIndex = index;
+            btn.disabled = item.count === 0 && state.editorTool === 'place';
+
+            // Styling for flex layout
+            btn.style.display = 'flex';
+            btn.style.flexDirection = 'column';
+            btn.style.alignItems = 'center';
+            btn.style.justifyContent = 'center';
+            btn.style.gap = '5px';
+            btn.style.padding = '8px';
+            
+            btn.innerHTML = '';
+            
+            const visual = ui.createBrickVisual({ type: item.type, level: item.level, health: 10 });
+            visual.style.width = '30px';
+            visual.style.height = '30px';
+            visual.style.flexShrink = '0';
+
+            const textContainer = document.createElement('div');
+            textContainer.style.lineHeight = '1.2';
+
+            const levelText = document.createElement('div');
+            levelText.textContent = `Lv.${item.level}`;
+            levelText.style.fontSize = '10px';
+
+            const countText = document.createElement('div');
+            countText.textContent = `x${item.count}`;
+            
+            textContainer.appendChild(levelText);
+            textContainer.appendChild(countText);
+
+            btn.appendChild(visual);
+            btn.appendChild(textContainer);
+
+            btn.addEventListener('click', () => {
+                sounds.buttonClick();
+                setState('object_index', index);
+            });
+            
+            dom.editorBricksContainer.appendChild(btn);
+        });
+    }
+
+    // --- 2. Render Detached Overlays ---
+    const detachedOverlays = state.overlayInventory.filter(o => o.hostBrickId === null);
     
+    if (detachedOverlays.length > 0) {
+        // Optional: Add a visual separator
+        const separator = document.createElement('div');
+        separator.style.width = '100%';
+        separator.style.height = '1px';
+        separator.style.backgroundColor = '#444';
+        separator.style.margin = '5px 0';
+        separator.style.gridColumn = '1 / -1';
+        dom.editorBricksContainer.appendChild(separator);
+
+        detachedOverlays.forEach((overlay) => {
+            const btn = document.createElement('button');
+            btn.className = 'editor-btn';
+            btn.dataset.overlayId = overlay.id;
+
+            btn.style.display = 'flex';
+            btn.style.flexDirection = 'column';
+            btn.style.alignItems = 'center';
+            btn.style.justifyContent = 'center';
+            btn.style.gap = '2px';
+            btn.style.padding = '8px';
+            btn.style.borderColor = '#a460f8'; // Purple border for overlays
+
+            const name = overlay.type.charAt(0).toUpperCase() + overlay.type.slice(1);
+            
+            btn.innerHTML = `
+                <div style="font-size:10px; color:#ccc;">OVERLAY</div>
+                <div style="font-weight:bold; color:#e0e0e0;">${name}</div>
+                <div style="font-size:10px; color:#98FB98;">Lv.${overlay.level}</div>
+            `;
+
+            btn.addEventListener('click', () => {
+                sounds.buttonClick();
+                setState('select_overlay', overlay);
+            });
+            dom.editorBricksContainer.appendChild(btn);
+        });
+    }
+
     // Update active states
     document.querySelectorAll('.editor-btn').forEach(btn => btn.classList.remove('active'));
     let activeToolBtn = document.querySelector(`.editor-btn[data-tool="${state.editorTool}"]`);
     if(activeToolBtn) activeToolBtn.classList.add('active');
     
     if (state.editorTool === 'place' && state.editorSelectedItem) {
-        const currentSortedIndex = state.homeBaseInventory.findIndex(
-            item => item.type === state.editorSelectedItem.type && item.level === state.editorSelectedItem.level
-        );
-        if (currentSortedIndex !== -1) {
-            let activeObjectBtn = document.querySelector(`.editor-btn[data-inventory-index="${currentSortedIndex}"]`);
-            if (activeObjectBtn) activeObjectBtn.classList.add('active');
-        } else {
-            // The selected item is no longer in the inventory
-            state.editorSelectedItem = null;
+        // Check if selected item is a brick stack
+        if (state.editorSelectedItem.count !== undefined) {
+            const currentSortedIndex = state.homeBaseInventory.findIndex(
+                item => item.type === state.editorSelectedItem.type && item.level === state.editorSelectedItem.level
+            );
+            if (currentSortedIndex !== -1) {
+                let activeObjectBtn = document.querySelector(`.editor-btn[data-inventory-index="${currentSortedIndex}"]`);
+                if (activeObjectBtn) activeObjectBtn.classList.add('active');
+            } else {
+                state.editorSelectedItem = null;
+            }
+        } 
+        // Check if selected item is an overlay
+        else if (state.editorSelectedItem.hostBrickId !== undefined) {
+             let activeOverlayBtn = document.querySelector(`.editor-btn[data-overlay-id="${state.editorSelectedItem.id}"]`);
+             if (activeOverlayBtn) activeOverlayBtn.classList.add('active');
         }
     }
 
     // Update Finish button state
     const finishBtn = document.getElementById('finishEditBtn');
     if (finishBtn) {
-        if (state.homeBaseInventory.length > 0) {
+        const hasBricks = state.homeBaseInventory && state.homeBaseInventory.length > 0;
+        const hasOverlays = state.overlayInventory.some(o => o.hostBrickId === null);
+        
+        if (hasBricks || hasOverlays) {
             finishBtn.disabled = true;
-            finishBtn.title = 'You must place all picked-up bricks before finishing.';
+            finishBtn.title = 'You must place all picked-up items before finishing.';
         } else {
             finishBtn.disabled = false;
             finishBtn.title = '';
@@ -118,106 +175,122 @@ function populateAdventureEditorPanel() {
         'ballCage', 'equipment', 'wool', 'shieldGen', 'long_h', 'long_v'
     ];
     const overlays = [
-        'builder', 'healer', 'mine', 'zapper', 'zap_battery'
+        'builder', 'healer', 'mine', 'zapper', 'zap_battery', 'spike', 'sniper', 'laser'
     ];
 
-    dom.editorToolsContainer.innerHTML = '';
-    tools.forEach(tool => {
-        const btn = document.createElement('button');
-        btn.className = 'editor-btn';
-        btn.dataset.tool = tool.id;
-        btn.textContent = tool.name;
-        btn.addEventListener('click', () => {
-            sounds.buttonClick();
-gameController.setEditorState('tool', tool.id);
-        });
-        dom.editorToolsContainer.appendChild(btn);
-    });
-
-    dom.editorBricksContainer.innerHTML = '';
-    bricks.forEach(brick => {
-        const btn = document.createElement('button');
-        btn.className = 'editor-btn';
-        btn.dataset.object = brick;
-        
-        let name = brick.charAt(0).toUpperCase() + brick.slice(1);
-        if (brick === 'long_h') name = 'Long H';
-        if (brick === 'long_v') name = 'Long V';
-        btn.textContent = name;
-
-        btn.addEventListener('click', () => {
-            sounds.buttonClick();
-            gameController.setEditorState('object', brick);
-        });
-        dom.editorBricksContainer.appendChild(btn);
-    });
-    
-    dom.editorOverlaysContainer.innerHTML = '';
-    overlays.forEach(overlay => {
-        const btn = document.createElement('button');
-        btn.className = 'editor-btn';
-        btn.dataset.object = overlay;
-        btn.textContent = overlay.charAt(0).toUpperCase() + overlay.slice(1);
-        btn.addEventListener('click', () => {
-            sounds.buttonClick();
-            gameController.setEditorState('object', overlay);
-        });
-        dom.editorOverlaysContainer.appendChild(btn);
-    });
-}
-
-function setupPanelForMode(mode) {
-    if (mode === 'homeBase') {
-        dom.editorObjectsHeader.textContent = 'INVENTORY';
-        dom.editorOverlaysContainer.parentElement.classList.add('hidden');
-        dom.editorActionsSection.classList.remove('hidden');
-        
+    if (dom.editorToolsContainer) {
         dom.editorToolsContainer.innerHTML = '';
-        [{id: 'place', name: 'Place'}, {id: 'pickup', name: 'Pickup'}].forEach(tool => {
+        tools.forEach(tool => {
             const btn = document.createElement('button');
             btn.className = 'editor-btn';
             btn.dataset.tool = tool.id;
             btn.textContent = tool.name;
             btn.addEventListener('click', () => {
                 sounds.buttonClick();
-                setState('tool', tool.id);
+                gameController.setEditorState('tool', tool.id);
             });
             dom.editorToolsContainer.appendChild(btn);
         });
+    }
+
+    if (dom.editorBricksContainer) {
+        dom.editorBricksContainer.innerHTML = '';
+        bricks.forEach(brick => {
+            const btn = document.createElement('button');
+            btn.className = 'editor-btn';
+            btn.dataset.object = brick;
+            
+            let name = brick.charAt(0).toUpperCase() + brick.slice(1);
+            if (brick === 'long_h') name = 'Long H';
+            if (brick === 'long_v') name = 'Long V';
+            btn.textContent = name;
+
+            btn.addEventListener('click', () => {
+                sounds.buttonClick();
+                gameController.setEditorState('object', brick);
+            });
+            dom.editorBricksContainer.appendChild(btn);
+        });
+    }
+    
+    if (dom.editorOverlaysContainer) {
+        dom.editorOverlaysContainer.innerHTML = '';
+        overlays.forEach(overlay => {
+            const btn = document.createElement('button');
+            btn.className = 'editor-btn';
+            btn.dataset.object = overlay;
+            btn.textContent = overlay.charAt(0).toUpperCase() + overlay.slice(1);
+            btn.addEventListener('click', () => {
+                sounds.buttonClick();
+                gameController.setEditorState('object', overlay);
+            });
+            dom.editorOverlaysContainer.appendChild(btn);
+        });
+    }
+}
+
+function setupPanelForMode(mode) {
+    if (mode === 'homeBase') {
+        if (dom.editorObjectsHeader) dom.editorObjectsHeader.textContent = 'INVENTORY';
+        if (dom.editorOverlaysContainer && dom.editorOverlaysContainer.parentElement) {
+            dom.editorOverlaysContainer.parentElement.classList.add('hidden');
+        }
+        if (dom.editorActionsSection) dom.editorActionsSection.classList.remove('hidden');
+        
+        if (dom.editorToolsContainer) {
+            dom.editorToolsContainer.innerHTML = '';
+            [{id: 'place', name: 'Place'}, {id: 'pickup', name: 'Pickup'}].forEach(tool => {
+                const btn = document.createElement('button');
+                btn.className = 'editor-btn';
+                btn.dataset.tool = tool.id;
+                btn.textContent = tool.name;
+                btn.addEventListener('click', () => {
+                    sounds.buttonClick();
+                    setState('tool', tool.id);
+                });
+                dom.editorToolsContainer.appendChild(btn);
+            });
+        }
 
         updateHomeBaseEditorPanel();
         
         // Add Finish button
-        dom.editorActionsSection.innerHTML = '';
-        const finishBtn = document.createElement('button');
-        finishBtn.id = 'finishEditBtn';
-        finishBtn.textContent = 'Finish';
-        finishBtn.className = 'editor-btn';
-        finishBtn.style.width = '100%'; // Make it wider
-        finishBtn.addEventListener('click', () => {
-            sounds.buttonClick();
-            gameController.toggleEditor();
-        });
-        dom.editorActionsSection.appendChild(finishBtn);
+        if (dom.editorActionsSection) {
+            dom.editorActionsSection.innerHTML = '';
+            const finishBtn = document.createElement('button');
+            finishBtn.id = 'finishEditBtn';
+            finishBtn.textContent = 'Finish';
+            finishBtn.className = 'editor-btn';
+            finishBtn.style.width = '100%'; // Make it wider
+            finishBtn.addEventListener('click', () => {
+                sounds.buttonClick();
+                gameController.toggleEditor();
+            });
+            dom.editorActionsSection.appendChild(finishBtn);
+        }
 
     } else { // adventureRun
-        dom.editorObjectsHeader.textContent = 'BRICKS';
-        dom.editorOverlaysContainer.parentElement.classList.remove('hidden');
-        dom.editorActionsSection.classList.remove('hidden');
+        if (dom.editorObjectsHeader) dom.editorObjectsHeader.textContent = 'BRICKS';
+        if (dom.editorOverlaysContainer && dom.editorOverlaysContainer.parentElement) {
+            dom.editorOverlaysContainer.parentElement.classList.remove('hidden');
+        }
+        if (dom.editorActionsSection) dom.editorActionsSection.classList.remove('hidden');
         populateAdventureEditorPanel();
         
         // Add Finish button
-        dom.editorActionsSection.innerHTML = '';
-        const finishBtn = document.createElement('button');
-        finishBtn.id = 'finishEditBtn';
-        finishBtn.textContent = 'Finish';
-        finishBtn.className = 'editor-btn';
-        finishBtn.style.width = '100%';
-        finishBtn.addEventListener('click', () => {
-            sounds.buttonClick();
-            gameController.toggleEditor();
-        });
-        dom.editorActionsSection.appendChild(finishBtn);
+        if (dom.editorActionsSection) {
+            dom.editorActionsSection.innerHTML = '';
+            const finishBtn = document.createElement('button');
+            finishBtn.id = 'finishEditBtn';
+            finishBtn.textContent = 'Finish';
+            finishBtn.className = 'editor-btn';
+            finishBtn.style.width = '100%';
+            finishBtn.addEventListener('click', () => {
+                sounds.buttonClick();
+                gameController.toggleEditor();
+            });
+            dom.editorActionsSection.appendChild(finishBtn);
+        }
     }
     
     const defaultTool = mode === 'homeBase' ? 'pickup' : 'select';
@@ -258,32 +331,70 @@ function applyToolActionToTile(p, c, r, board, bricks) {
         let actionTaken = false;
         switch (state.editorTool) {
             case 'place':
-                if (!brick && state.editorSelectedItem) {
-                    const item = state.editorSelectedItem;
-                    if (item.count > 0) {
-                        const newBrick = new Brick(p, c - 6, r - 6, item.type, 10, board.gridUnitSize, item.level);
-                        bricks[c][r] = newBrick;
-                        item.count--;
-                        
-                        if (item.count === 0) {
-                            const itemIndex = state.homeBaseInventory.indexOf(item);
-                            if (itemIndex > -1) {
-                                state.homeBaseInventory.splice(itemIndex, 1);
+                if (state.editorSelectedItem) {
+                    // CASE A: Placing a Brick Stack
+                    if (state.editorSelectedItem.count !== undefined) {
+                        if (!brick) { // Target must be empty
+                            const item = state.editorSelectedItem;
+                            if (item.count > 0) {
+                                const newBrick = new Brick(p, c - 6, r - 6, item.type, 10, board.gridUnitSize, item.level);
+                                bricks[c][r] = newBrick;
+                                item.count--;
+                                
+                                if (item.count === 0) {
+                                    const itemIndex = state.homeBaseInventory.indexOf(item);
+                                    if (itemIndex > -1) {
+                                        state.homeBaseInventory.splice(itemIndex, 1);
+                                    }
+                                    state.editorSelectedItem = null; // Deselect
+                                }
+                                actionTaken = true;
                             }
-                            state.editorSelectedItem = null; // Deselect
                         }
-                        actionTaken = true;
+                    } 
+                    // CASE B: Placing an Overlay
+                    else if (state.editorSelectedItem.hostBrickId !== undefined) {
+                        // Target must be a brick, normal type, and have no existing overlay
+                        if (brick && brick.type === 'normal' && !brick.overlayId) {
+                            const overlayItem = state.editorSelectedItem;
+                            
+                            brick.overlayId = overlayItem.id;
+                            brick.overlay = overlayItem.type;
+                            overlayItem.hostBrickId = brick.id;
+
+                            // Apply any specific overlay stats
+                            if (overlayItem.type === 'spike') {
+                                const levelData = OVERLAY_LEVELING_DATA['spike']?.[overlayItem.level - 1];
+                                brick.retaliateDamage = levelData?.stats?.retaliateDamage || BRICK_STATS.spike.damage;
+                            } else if (overlayItem.type === 'sniper') {
+                                brick.sniperCharge = 0;
+                            }
+
+                            state.editorSelectedItem = null; // Overlays are unique, so deselect after placing
+                            actionTaken = true;
+                        }
                     }
                 }
                 break;
             case 'pickup':
                 if (brick) {
+                    // 1. Detach Overlay if exists
+                    if (brick.overlayId) {
+                        const overlay = state.overlayInventory.find(o => o.id === brick.overlayId);
+                        if (overlay) {
+                            overlay.hostBrickId = null; // It becomes "floating" in overlayInventory
+                        }
+                    }
+
+                    // 2. Add Brick to Inventory
                     const existingStack = state.homeBaseInventory.find(item => item.type === brick.type && item.level === brick.level);
                     if (existingStack) {
                         existingStack.count++;
                     } else {
                         state.homeBaseInventory.push({ type: brick.type, level: brick.level, count: 1 });
                     }
+                    
+                    // 3. Remove Brick from Grid
                     const rootC = brick.c + 6, rootR = brick.r + 6;
                     for (let i = 0; i < brick.widthInCells; i++) {
                         for (let j = 0; j < brick.heightInCells; j++) {
@@ -309,10 +420,22 @@ function applyToolActionToTile(p, c, r, board, bricks) {
 
     switch (state.editorTool) {
         case 'place':
-            const isOverlay = ['builder', 'healer', 'mine', 'zapper', 'zap_battery'].includes(state.editorObject);
+            const isOverlay = ['builder', 'healer', 'mine', 'zapper', 'zap_battery', 'spike', 'sniper', 'laser'].includes(state.editorObject);
             if (isOverlay) {
                 if (brick && brick.type === 'normal' && brick.overlay !== state.editorObject) {
                     brick.overlay = state.editorObject;
+
+                    if (state.editorObject === 'spike') {
+                        brick.retaliateDamage = BRICK_STATS.spike.damage;
+                    } else {
+                        brick.retaliateDamage = 0; // Reset if changing from spike to something else
+                    }
+                    if (state.editorObject === 'sniper') {
+                        brick.sniperCharge = 0;
+                    } else {
+                        delete brick.sniperCharge;
+                    }
+
                     actionTaken = true;
                 }
             } else {
@@ -370,6 +493,8 @@ function applyToolActionToTile(p, c, r, board, bricks) {
             if (brick) {
                 if (brick.overlay) {
                     brick.overlay = null;
+                    brick.retaliateDamage = 0; // Reset retaliate damage
+                    delete brick.sniperCharge;
                 } else {
                     const rootC = brick.c + 6, rootR = brick.r + 6;
                     for (let i = 0; i < brick.widthInCells; i++) {
@@ -513,7 +638,21 @@ export function draw(p, renderContext) {
         
         if (state.editorTool !== 'select') {
             p.textAlign(p.CENTER, p.CENTER); p.textSize(12); p.fill(255);
-            const text = state.editorTool === 'place' ? state.editorObject : state.editorTool.replace(/_/g, ' ');
+            let text = '';
+            if (state.editorTool === 'place') {
+                if (state.editorSelectedItem) {
+                    if (state.editorSelectedItem.count !== undefined) {
+                         text = state.editorSelectedItem.type;
+                    } else if (state.editorSelectedItem.hostBrickId !== undefined) {
+                         text = state.editorSelectedItem.type + ' (Overlay)';
+                    }
+                } else {
+                     text = state.editorObject;
+                }
+            } else {
+                text = state.editorTool.replace(/_/g, ' ');
+            }
+            
             p.text(text, x + board.gridUnitSize / 2, y + board.gridUnitSize / 2);
         }
     }
@@ -568,9 +707,12 @@ export function setState(type, value) {
         if (value !== 'place') {
             state.editorSelectedItem = null;
         }
-    } else if (type === 'object_index') { // For Home Base inventory
+    } else if (type === 'object_index') { // For Home Base inventory (Bricks)
         state.editorTool = 'place';
         state.editorSelectedItem = state.homeBaseInventory[value];
+    } else if (type === 'select_overlay') { // For Home Base inventory (Overlays)
+        state.editorTool = 'place';
+        state.editorSelectedItem = value; // This is the overlay object
     } else if (type === 'object') { // For Adventure editor
         state.editorTool = 'place';
         state.editorObject = value;

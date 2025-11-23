@@ -28,8 +28,12 @@ function renderBallProducerUI(brick) {
         const card = document.createElement('button');
         card.className = 'producer-card';
         
+        const enchantmentData = state.ballEnchantments[ballType];
+        const costMultiplier = enchantmentData ? enchantmentData.productionCostMultiplier : 1.0;
+        const finalCost = Math.round(HOME_BASE_PRODUCTION.BALL_COST_FOOD * costMultiplier);
+
         const canProduceThisType = (producingType === null || producingType === ballType);
-        const canAfford = state.playerFood >= HOME_BASE_PRODUCTION.BALL_COST_FOOD;
+        const canAfford = state.playerFood >= finalCost;
         const queueNotFull = queueCount < maxQueue;
         
         card.disabled = !canAfford || !queueNotFull || !canProduceThisType;
@@ -45,7 +49,7 @@ function renderBallProducerUI(brick) {
         const info = document.createElement('div');
         info.className = 'producer-card-info';
         const name = ballType.charAt(0).toUpperCase() + ballType.slice(1);
-        info.innerHTML = `<div>${name}</div><div>${HOME_BASE_PRODUCTION.BALL_COST_FOOD} 🥕</div>`;
+        info.innerHTML = `<div>${name}</div><div>${finalCost} 🥕</div>`;
         card.appendChild(info);
 
         // Active production UI
@@ -64,7 +68,7 @@ function renderBallProducerUI(brick) {
                 e.stopPropagation(); // Prevent card's click event
                 sounds.buttonClick();
                 
-                state.playerFood += HOME_BASE_PRODUCTION.BALL_COST_FOOD;
+                state.playerFood += finalCost;
                 brick.production.queueCount--;
                 
                 if (brick.production.queueCount === 0) {
@@ -90,7 +94,7 @@ function renderBallProducerUI(brick) {
             if (card.disabled) return;
             sounds.buttonClick();
             
-            state.playerFood -= HOME_BASE_PRODUCTION.BALL_COST_FOOD;
+            state.playerFood -= finalCost;
             
             if (brick.production.queueCount === 0) {
                 brick.production.type = ballType;

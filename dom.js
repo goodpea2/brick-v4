@@ -1,3 +1,4 @@
+
 // dom.js - Centralized DOM Element References
 
 export const pauseResumeBtn = document.getElementById('pauseResumeBtn');
@@ -11,6 +12,13 @@ export const ballSelectorArrow = document.getElementById('ballSelectorArrow');
 export const ballTooltip = document.getElementById('ballTooltip');
 export const levelSettingsButton = document.getElementById('levelSettingsButton');
 export const settingsModal = document.getElementById('levelSettingsModal');
+export const levelSettingsTitle = document.getElementById('levelSettingsTitle');
+export const adventureSettingsContainer = document.getElementById('adventureSettingsContainer');
+export const invasionSettingsContainer = document.getElementById('invasionSettingsContainer');
+export const startingHPPoolInput = document.getElementById('startingHPPool');
+export const hpPoolIncrementPerWaveInput = document.getElementById('hpPoolIncrementPerWave');
+export const minEnemyTypesInput = document.getElementById('minEnemyTypes');
+export const maxEnemyTypesInput = document.getElementById('maxEnemyTypes');
 export const closeSettingsBtn = settingsModal.querySelector('.close-button');
 export const generateLevelBtn = document.getElementById('generateLevelButton');
 export const shopModal = document.getElementById('shopModal');
@@ -23,6 +31,11 @@ export const cheatButtonsContainer = document.getElementById('cheat-buttons-cont
 export const cheatLevelBtn = document.getElementById('cheatLevelBtn');
 export const cheatFoodBtn = document.getElementById('cheatFoodBtn');
 export const cheatWoodBtn = document.getElementById('cheatWoodBtn');
+export const cheatEnchantersBtn = document.getElementById('cheatEnchantersBtn');
+export const cheatEnchantAllBtn = document.getElementById('cheatEnchantAllBtn');
+export const cheatFillCagesBtn = document.getElementById('cheatFillCagesBtn');
+export const cheatSpeedUpBtn = document.getElementById('cheatSpeedUpBtn');
+export const cheatLevelUpAllBtn = document.getElementById('cheatLevelUpAllBtn');
 export const cheatGiantBallBtn = document.getElementById('cheatGiantBallBtn');
 export const cheatEndTurnBtn = document.getElementById('cheatEndTurnBtn');
 export const cheatGoldenShotBtn = document.getElementById('cheatGoldenShotBtn');
@@ -30,6 +43,10 @@ export const cheatGetAllEqCommon = document.getElementById('cheatGetAllEqCommon'
 export const cheatGetAllEqRare = document.getElementById('cheatGetAllEqRare');
 export const cheatGetAllEqEpic = document.getElementById('cheatGetAllEqEpic');
 export const cheatUnlockSkillsBtn = document.getElementById('cheatUnlockSkillsBtn');
+export const cheatFoodRoomBtn = document.getElementById('cheatFoodRoomBtn');
+export const cheatWoodRoomBtn = document.getElementById('cheatWoodRoomBtn');
+export const cheatDangerRoomBtn = document.getElementById('cheatDangerRoomBtn');
+export const cheatLuckyRoomBtn = document.getElementById('cheatLuckyRoomBtn');
 export const shopCoinCount = document.getElementById('shopCoinCount');
 export const upgradesGrid = document.getElementById('upgradesGrid');
 export const playerLevelStatEl = document.getElementById('player-level-stat');
@@ -41,11 +58,9 @@ export const gemStatEl = document.getElementById('gem-stat');
 export const foodBankEl = document.querySelector('.food-bank');
 export const foodStatEl = document.getElementById('food-stat');
 export const foodBarFillEl = document.getElementById('food-bar-fill');
-export const foodTooltipEl = document.querySelector('.food-bank .tooltip');
 export const woodBankEl = document.querySelector('.wood-bank');
 export const woodStatEl = document.getElementById('wood-stat');
 export const woodBarFillEl = document.getElementById('wood-bar-fill');
-export const woodTooltipEl = document.querySelector('.wood-bank .tooltip');
 export const debugStatsContainer = document.getElementById('debugStatsContainer');
 export const debugHpStatEl = document.getElementById('debug-hp-stat');
 export const debugCoinStatEl = document.getElementById('debug-coin-stat');
@@ -156,7 +171,6 @@ export const statGO_GemsCollected = document.getElementById('statGO-GemsCollecte
 export const statGO_FoodCollected = document.getElementById('statGO-FoodCollected');
 export const statGO_WoodCollected = document.getElementById('statGO-WoodCollected');
 
-export const openEquipmentBtn = document.getElementById('openEquipmentBtn');
 export const equipmentModal = document.getElementById('equipmentModal');
 export const closeEquipmentBtn = equipmentModal.querySelector('.close-button');
 export const equipmentBallSlotsContainer = document.getElementById('equipment-ball-slots');
@@ -189,6 +203,14 @@ export const editBaseBtn = document.getElementById('editBaseBtn');
 export const homeBaseShopBtn = document.getElementById('homeBaseShopBtn');
 export const homeBaseShopModal = document.getElementById('homeBaseShopModal');
 
+// Save/Load Game
+export const saveGameBtn = document.getElementById('saveGameBtn');
+export const loadGameBtn = document.getElementById('loadGameBtn');
+export const saveGameModal = document.getElementById('saveGameModal');
+export const saveGameTextarea = document.getElementById('saveGameTextarea');
+export const copySaveBtn = document.getElementById('copySaveBtn');
+export const loadSaveBtn = document.getElementById('loadSaveBtn');
+
 // Context Panel
 export const leftContextPanel = document.getElementById('left-context-panel');
 export const ballProducerUI = document.getElementById('ball-producer-ui');
@@ -203,6 +225,7 @@ export const runShopCoinCount = document.getElementById('run-shop-coin-count');
 export const runEquipmentBtn = document.getElementById('run-equipment-btn');
 export const runEquipmentCount = document.getElementById('run-equipment-count');
 export const runLootPanel = document.getElementById('run-loot-panel');
+export const invasionLootPanel = document.getElementById('invasion-loot-panel');
 export const runFoodCount = document.getElementById('run-food-count');
 export const runWoodCount = document.getElementById('run-wood-count');
 
@@ -217,6 +240,13 @@ export const upgradeInputsContainer = document.getElementById('upgrade-inputs-co
 export const upgradeOutputContainer = document.getElementById('upgrade-output-container');
 export const brickUpgradeBtn = document.getElementById('brick-upgrade-btn');
 export const brickUpgradeCost = document.getElementById('brick-upgrade-cost');
+export const overlayInfoSection = document.getElementById('overlay-info-section');
+export const overlayInfoName = document.getElementById('overlay-info-name');
+export const overlayInfoLevel = document.getElementById('overlay-info-level');
+export const overlayInfoStats = document.getElementById('overlay-info-stats');
+export const overlayUpgradeBtn = document.getElementById('overlay-upgrade-btn');
+export const overlayUpgradeCost = document.getElementById('overlay-upgrade-cost');
+export const overlayMoveBtn = document.getElementById('overlay-move-btn');
 
 
 // Game Mode Modals
@@ -224,6 +254,7 @@ export const gameModeModal = document.getElementById('gameModeModal');
 export const closeGameModeModalBtn = gameModeModal.querySelector('.close-button');
 export const adventureRunBtn = document.getElementById('adventureRunBtn');
 export const trialRunBtn = document.getElementById('trialRunBtn');
+export const invasionDefendBtn = document.getElementById('invasionDefendBtn');
 export const adventureRunDescriptionEl = document.getElementById('adventureRunDescription');
 export const trialRunDescriptionEl = document.getElementById('trialRunDescription');
 export const invasionDefendDescriptionEl = document.getElementById('invasionDefendDescription');
@@ -238,3 +269,8 @@ export const abandonRunCancelBtn = document.getElementById('abandonRunCancelBtn'
 // Enchantment Modal
 export const enchantBtn = document.getElementById('enchantBtn');
 export const enchantmentModal = document.getElementById('enchantmentModal');
+
+// Invasion Defend
+export const startNextWaveBtn = document.getElementById('startNextWaveBtn');
+export const invasionShopUI = document.getElementById('invasion-shop-ui');
+export const invasionShopCoinCountEl = document.getElementById('invasion-shop-coin-count');

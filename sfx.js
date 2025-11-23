@@ -170,6 +170,13 @@ export const sounds = {
     },
     zap: () => playSound({ freq: 1200, duration: 0.1, type: 'sawtooth', volume: 0.2, decay: 0.08, freqEnd: 800 }),
     
+    // --- New Enchanter Sound ---
+    enchanterCollect: () => {
+        playSound({ freq: 698.46, duration: 0.1, type: 'triangle', volume: 0.3, delay: 0 }); // F5
+        playSound({ freq: 932.33, duration: 0.1, type: 'triangle', volume: 0.3, delay: 0.1 }); // A#5
+        playSound({ freq: 1174.66, duration: 0.2, type: 'sine', volume: 0.3, decay: 0.18, delay: 0.2 }); // D6
+    },
+
     // --- New Resource Sounds ---
     foodCollect: () => playSound({ freq: 600, duration: 0.1, type: 'triangle', volume: 0.3, decay: 0.08, freqEnd: 1200 }),
     woodCollect: () => playSound({ freq: 150, duration: 0.15, type: 'square', volume: 0.4, decay: 0.12, freqEnd: 100 }),
@@ -181,4 +188,9 @@ export const sounds = {
     selectBall: () => playSound({ freq: 400, duration: 0.15, type: 'sine', volume: 0.3, decay: 0.12, freqEnd: 700 }),
     upgrade: () => { playSound({ freq: 659.26, duration: 0.1, type: 'sine', delay: 0 }); playSound({ freq: 880.00, duration: 0.1, type: 'sine', delay: 0.08 }); playSound({ freq: 1046.50, duration: 0.1, type: 'sine', delay: 0.16 }); },
     ballGained: () => { playSound({ freq: 783.99, duration: 0.1, type: 'triangle', volume: 0.3, decay: 0.08 }); playSound({ freq: 1046.50, duration: 0.15, type: 'triangle', volume: 0.2, decay: 0.12, delay: 0.1 }); },
+
+    // --- New Overlay Sounds ---
+    spikeRetaliate: () => { playSound({ freq: 600, duration: 0.1, type: 'square', volume: 0.4, decay: 0.08, freqEnd: 300 }); playSound({ type: 'noise', duration: 0.05, volume: 0.2, decay: 0.04 }); },
+    sniperFire: () => { playSound({ freq: 120, duration: 0.4, type: 'sawtooth', volume: 0.4, decay: 0.35, freqEnd: 60 }); playSound({ type: 'noise', duration: 0.2, volume: 0.2, decay: 0.18 }); },
+    laserFire: () => playSound({ freq: 1500, duration: 0.2, type: 'sawtooth', volume: 0.3, decay: 0.18, freqEnd: 500 }),
 };

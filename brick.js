@@ -1,13 +1,18 @@
+
+
 // brick.js
 
 import { BRICK_STATS, BRICK_VISUALS, HOME_BASE_PRODUCTION } from './balancing.js';
 import { state } from './state.js';
 import { Ball, MiniBall } from './ball.js';
 import { BRICK_LEVELING_DATA } from './brickLeveling.js';
+import { drawCustomBrick, drawCustomOverlay } from './brickVisual.js';
 
 export class Brick {
     constructor(p, c, r, type = 'normal', health = 10, gridUnitSize, level = 1) { 
         this.p = p;
+        this.id = crypto.randomUUID();
+        this.overlayId = null;
         this.c = c; // Column, -6 to 6
         this.r = r; // Row, -6 to 6
         this.size = gridUnitSize; 
@@ -36,7 +41,7 @@ export class Brick {
         this.maxCoins = 0; 
         this.coins = 0; 
         this.coinIndicatorPositions = null; 
-        this.maxFood = BRICK_STATS.canCarryFood[this.type] ? 20 : 0;
+        this.maxFood = 0;
         this.food = 0;
         this.foodIndicatorPositions = null;
         this.gems = 0;
@@ -46,16 +51,25 @@ export class Brick {
         this.flashTime = 0;
         this.isShieldedByAura = false;
         
+        if (state.gameMode === 'homeBase' && BRICK_STATS.canCarryFood[this.type]) {
+            this.maxFood = 10;
+            this.foodIndicatorPositions = [];
+            for (let i = 0; i < 10; i++) {
+                this.foodIndicatorPositions.push(p.createVector(p.random(this.size * 0.1, this.size * 0.9), p.random(this.size * 0.1, this.size * 0.9)));
+            }
+        }
+
         this.widthInCells = 1;
         this.heightInCells = 1;
 
         if (this.type === 'BallProducer') {
+            const baseMaxQueue = BRICK_LEVELING_DATA.BallProducer[this.level - 1]?.stats.maxQueue || HOME_BASE_PRODUCTION.MAX_QUEUE;
             this.production = {
                 type: null,
                 queueCount: 0,
                 progress: 0,
                 maxTimer: HOME_BASE_PRODUCTION.BALL_TIME_FRAMES,
-                maxQueue: HOME_BASE_PRODUCTION.MAX_QUEUE,
+                maxQueue: baseMaxQueue,
             };
             this.heldBall = null; // string ballType, if output is blocked
         }
@@ -92,6 +106,11 @@ export class Brick {
             console.error(`Brick hit with invalid damage: ${damage}. Defaulting to 1.`);
             damage = 1;
         }
+
+        // Armor Logic
+        if (this.armor > 0) {
+            damage = Math.max(1, damage - this.armor);
+        }
         
         const colorBeforeHit = this.getColor();
         const totalLayers = this.getTotalLayers();
@@ -108,6 +127,16 @@ export class Brick {
             
             coinsDropped = Math.max(0, coinsBeforeHit - coinsAfterHit);
             this.coins = coinsAfterHit; 
+        }
+
+        let foodDropped = 0;
+        if (this.maxFood > 0) {
+            const foodBeforeHit = this.food;
+            const effectiveHealth = Math.max(0, Math.min(this.health, this.maxHealth));
+            const foodAfterHit = Math.floor((effectiveHealth / this.maxHealth) * this.maxFood);
+            
+            foodDropped = Math.max(0, foodBeforeHit - foodAfterHit);
+            this.food = foodAfterHit;
         }
 
         let gemsDropped = 0;
@@ -137,6 +166,7 @@ export class Brick {
             damageDealt,
             coinsDropped,
             gemsDropped,
+            foodDropped,
             isBroken: this.isBroken(),
             color: colorBeforeHit,
             center: centerPos,
@@ -148,7 +178,7 @@ export class Brick {
     }
 
     heal(amount) {
-        this.health += amount;
+        this.health = this.p.min(this.maxHealth, this.health + amount);
     }
 
     buffHealth(amount) {
@@ -163,7 +193,7 @@ export class Brick {
     }
 
     getTotalLayers() {
-        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer'];
+        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer', 'EmptyCage'];
         if (!layeredTypes.includes(this.type)) {
             return Math.max(1, Math.floor((this.health - 1) / 10) + 1);
         }
@@ -186,7 +216,7 @@ export class Brick {
 
     getColor() {
         const p = this.p;
-        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer'];
+        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer', 'EmptyCage'];
         
         if (layeredTypes.includes(this.type)) {
             const isMerged = this.widthInCells > 1 || this.heightInCells > 1;
@@ -208,7 +238,7 @@ export class Brick {
             return p.color(...colorValues);
         }
 
-        if (this.type === 'ballCage' || this.type === 'EmptyCage') return p.color(100, 150, 255);
+        if (this.type === 'ballCage') return p.color(100, 150, 255);
         if (this.type === 'explosive' || this.type === 'horizontalStripe' || this.type === 'verticalStripe') return p.color(255, 80, 80);
         if (this.type === 'equipment') return p.color(200, 200, 200);
         
@@ -219,14 +249,59 @@ export class Brick {
         return p.color(150);
     }
 
-    draw(board, timerState = null, posOverride = null) {
+    drawSpikeOverlay(board, pos) {
+        const p = this.p;
+        const totalWidth = this.size * this.widthInCells;
+        const totalHeight = this.size * this.heightInCells;
+
+        const spikeLength = this.size * 0.07; // how far the spikes stick out
+        const spikeThickness = 3; // line thickness
+
+        p.push();
+        p.translate(pos.x, pos.y);
+        p.stroke(100, 150, 255);
+        p.strokeWeight(spikeThickness);
+
+        // Top side (3 spikes)
+        for (let i = 0; i < 3; i++) {
+            const x = totalWidth * (0.25 + i * 0.25);
+            p.line(x, 0, x, -spikeLength);
+        }
+
+        // Bottom side (3 spikes)
+        for (let i = 0; i < 3; i++) {
+            const x = totalWidth * (0.25 + i * 0.25);
+            p.line(x, totalHeight, x, totalHeight + spikeLength + this.size * 0.05);
+        }
+
+        // Left side (3 spikes)
+        for (let i = 0; i < 3; i++) {
+            const y = totalHeight * (0.25 + i * 0.25);
+            p.line(0, y, -spikeLength, y);
+        }
+
+        // Right side (3 spikes)
+        for (let i = 0; i < 3; i++) {
+            const y = totalHeight * (0.25 + i * 0.25);
+            p.line(totalWidth, y, totalWidth + spikeLength, y);
+        }
+
+        p.pop();
+    }
+
+
+    draw(board, timerState = null, posOverride = null, ballsInPlay = []) {
         const p = this.p;
         const pos = posOverride ? posOverride : this.getPixelPos(board);
         const totalWidth = this.size * this.widthInCells;
         const totalHeight = this.size * this.heightInCells;
-        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer'];
+        const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer', 'EmptyCage'];
         
-        if (layeredTypes.includes(this.type)) {
+        // Attempt to draw custom leveled visual first
+        const mainColor = this.getColor();
+        let customDrawn = drawCustomBrick(p, this, pos.x, pos.y, this.size, mainColor);
+        
+        if (!customDrawn && layeredTypes.includes(this.type)) {
             const isMerged = this.widthInCells > 1 || this.heightInCells > 1;
             let hpPerLayerKey = this.type;
             let paletteKey = this.type;
@@ -284,8 +359,6 @@ export class Brick {
                 p.rect(layerPos.x, layerPos.y, layerWidth, layerHeight, layerCornerRadius);
             }
 
-            if (this.flashTime > 0) this.flashTime--;
-
             // Draw icons & patterns on top
             const cX = pos.x + totalWidth / 2;
             const cY = pos.y + totalHeight / 2;
@@ -311,15 +384,7 @@ export class Brick {
                 p.ellipse(cX, cY, totalWidth * 0.8, totalHeight * 0.8);
                 p.ellipse(cX, cY, totalWidth * 0.5, totalHeight * 0.5);
                 p.ellipse(cX, cY, totalWidth * 0.2, totalHeight * 0.2);
-            } else if (this.type === 'BallProducer') {
-                p.noFill();
-                p.stroke(p.lerpColor(drawColor, p.color(0), 0.4));
-                p.strokeWeight(2.5);
-                p.ellipse(cX, cY, totalWidth * 0.7, totalHeight * 0.7);
-                p.noStroke();
-                p.fill(p.lerpColor(drawColor, p.color(0), 0.6));
-                p.ellipse(cX, cY, totalWidth * 0.2, totalHeight * 0.2);
-            }
+            } 
             
             let icon, iconSize;
             switch(this.type) {
@@ -358,7 +423,6 @@ export class Brick {
             let borderColor = mainColor;
             if (this.flashTime > 0) {
                 borderColor = p.lerpColor(mainColor, p.color(255), 0.6);
-                this.flashTime--;
             }
             p.stroke(borderColor);
             p.strokeWeight(3);
@@ -367,54 +431,6 @@ export class Brick {
             p.fill(0, 255, 127);
             p.noStroke();
             p.ellipse(cX, cY, this.size * 0.5);
-
-        } else if (this.type === 'EmptyCage') {
-            const cX = pos.x + this.size / 2;
-            const cY = pos.y + this.size / 2;
-            const cornerRadius = 2;
-            const extrusion = 3;
-            
-            const mainColor = this.getColor();
-            const shadowColor = p.lerpColor(mainColor, p.color(0), 0.4);
-
-            p.noStroke();
-            p.fill(shadowColor);
-            p.rect(pos.x, pos.y + extrusion, this.size, this.size, cornerRadius);
-
-            p.noFill();
-            let borderColor = mainColor;
-            if (this.flashTime > 0) {
-                borderColor = p.lerpColor(mainColor, p.color(255), 0.6);
-                this.flashTime--;
-            }
-            p.stroke(borderColor);
-            p.strokeWeight(3);
-            p.rect(pos.x + 1.5, pos.y + 1.5, this.size - 3, this.size - 3, cornerRadius);
-
-            // Draw balls inside with idle animation
-            const ballRadius = this.size * 0.15;
-            const ballColor = p.color(0, 255, 127);
-            const positions = [
-                { x: cX, y: cY - this.size * 0.15 },
-                { x: cX - this.size * 0.2, y: cY + this.size * 0.15 },
-                { x: cX + this.size * 0.2, y: cY + this.size * 0.15 }
-            ];
-
-            for (let i = 0; i < this.inventory.length; i++) {
-                if (i >= positions.length) break;
-
-                const basePos = positions[i];
-                const animSpeed = 0.03;
-                const animMagnitude = 1.5;
-
-                // Use index `i` to offset the animation for each ball
-                const offsetX = p.cos(p.frameCount * animSpeed + i * p.TWO_PI / 3) * animMagnitude;
-                const offsetY = p.sin(p.frameCount * animSpeed * 1.2 + i * p.TWO_PI / 3) * animMagnitude;
-
-                p.fill(ballColor);
-                p.noStroke();
-                p.ellipse(basePos.x + offsetX, basePos.y + offsetY, ballRadius * 2);
-            }
 
         } else if (this.type === 'equipment') {
             const cX = pos.x + this.size / 2;
@@ -435,7 +451,6 @@ export class Brick {
             let drawColor = mainColor;
             if (this.flashTime > 0) {
                 drawColor = p.color(0, 0, 100);
-                this.flashTime--;
             }
             p.fill(drawColor);
             p.rect(pos.x, pos.y, this.size, this.size, cornerRadius);
@@ -448,7 +463,7 @@ export class Brick {
             p.text('?', cX, cY + 2);
             p.textStyle(p.NORMAL);
 
-        } else {
+        } else if (!customDrawn) {
             const mainColor = this.getColor();
             const shadowColor = p.lerpColor(mainColor, p.color(0), 0.4);
             const cornerRadius = 2;
@@ -461,7 +476,6 @@ export class Brick {
             let drawColor = mainColor;
             if (this.flashTime > 0) {
                 drawColor = p.lerpColor(mainColor, p.color(255), 0.6);
-                this.flashTime--;
             }
             p.fill(drawColor);
             p.rect(pos.x, pos.y, totalWidth, totalHeight, cornerRadius);
@@ -484,7 +498,9 @@ export class Brick {
             }
         }
 
-        // Draw timer on top
+        if (this.flashTime > 0) this.flashTime--;
+
+        // Draw timer on top (Common logic for custom or default visual)
         if ((this.type === 'Farmland' || this.type === 'Sawmill' || this.type === 'BallProducer') && timerState) {
             const cX = pos.x + totalWidth / 2;
             const cY = pos.y + totalHeight / 2;
@@ -511,6 +527,35 @@ export class Brick {
             }
         }
 
+        // EmptyCage contents (balls)
+        if (this.type === 'EmptyCage' && this.inventory && this.inventory.length > 0) {
+             // Draw balls inside with idle animation
+            const cX = pos.x + totalWidth / 2;
+            const cY = pos.y + totalHeight / 2;
+            const ballRadius = this.size * 0.15;
+            const ballColor = p.color(0, 255, 127);
+            const positions = [
+                { x: cX, y: cY - this.size * 0.15 },
+                { x: cX - this.size * 0.2, y: cY + this.size * 0.15 },
+                { x: cX + this.size * 0.2, y: cY + this.size * 0.15 }
+            ];
+
+            for (let i = 0; i < this.inventory.length; i++) {
+                if (i >= positions.length) break;
+
+                const basePos = positions[i];
+                const animSpeed = 0.05;
+                const animMagnitude = 2.0;
+
+                // Use index `i` to offset the animation for each ball
+                const offsetX = p.cos(p.frameCount * animSpeed + i * p.TWO_PI / 3) * animMagnitude;
+                const offsetY = p.sin(p.frameCount * animSpeed * 1.2 + i * p.TWO_PI / 3) * animMagnitude;
+
+                p.fill(ballColor);
+                p.noStroke();
+                p.ellipse(basePos.x + offsetX, basePos.y + offsetY, ballRadius * 2);
+            }
+        }
 
         if (this.isShieldedByAura) {
             p.noFill();
@@ -523,11 +568,13 @@ export class Brick {
         }
     }
 
-    drawOverlays(board) {
+    drawOverlays(board, ballsInPlay = []) {
          const p = this.p;
          const pos = this.getPixelPos(board);
          const totalWidth = this.size * this.widthInCells;
          const totalHeight = this.size * this.heightInCells;
+         const cX = pos.x + totalWidth / 2;
+         const cY = pos.y + totalHeight / 2;
 
          if (this.maxCoins > 0 && this.coins > 0 && this.coinIndicatorPositions) { 
              const numIndicators = p.min(this.coins, this.coinIndicatorPositions.length); 
@@ -541,7 +588,7 @@ export class Brick {
              }
          }
         if (this.maxFood > 0 && this.food > 0 && this.foodIndicatorPositions) {
-            const numIndicators = p.min(this.food, this.foodIndicatorPositions.length);
+            const numIndicators = p.min(Math.ceil(this.food / 3), this.foodIndicatorPositions.length);
             p.textAlign(p.CENTER, p.CENTER);
             const iconSize = this.size * 0.4;
             p.textSize(iconSize);
@@ -551,23 +598,6 @@ export class Brick {
                 const indicatorY = pos.y + this.foodIndicatorPositions[i].y * this.heightInCells;
                 p.text('🥕', indicatorX, indicatorY);
             }
-        }
-        if ((this.type === 'Farmland' || this.type === 'Sawmill') && this.localResourceStorage > 0) {
-            const cX = pos.x + totalWidth / 2;
-            const cY = pos.y + totalHeight / 2;
-            const icon = this.type === 'Farmland' ? '🥕' : '🪵';
-            const text = `${icon}${this.localResourceStorage}`;
-            
-            p.textAlign(p.CENTER, p.CENTER);
-            const textSize = this.size * 0.5;
-            p.textSize(textSize);
-            
-            const textWidth = p.textWidth(text);
-            p.fill(0, 0, 0, 150);
-            p.rect(cX - textWidth/2 - 4, cY - textSize/2 - 2, textWidth + 8, textSize + 4, 4);
-
-            p.fill(255);
-            p.text(text, cX, cY);
         }
         if (this.maxGems > 0 && this.gems > 0 && this.gemIndicatorPositions) {
             const numIndicators = p.min(this.gems, this.gemIndicatorPositions.length);
@@ -623,89 +653,98 @@ export class Brick {
             }
         }
          if (this.overlay) {
-            const cX = pos.x + totalWidth / 2; 
-            const cY = pos.y + totalHeight / 2; 
-            const auraSize = this.size * 0.7;
-            if (this.overlay === 'healer') { 
-                const pulseSize = auraSize * p.map(p.sin(p.frameCount * 0.1), -1, 1, 0.9, 1.1);
-                const pulseAlpha = p.map(p.sin(p.frameCount * 0.1), -1, 1, 80, 80);
-                p.noFill();
-                p.strokeWeight(2);
-                p.stroke(255, 255, 255, pulseAlpha);
-                p.ellipse(cX, cY, pulseSize * 1.2);
-                p.stroke(255, 255, 255, pulseAlpha * 0.8);
-                p.ellipse(cX, cY, pulseSize * 1.5);
-            } else if (this.overlay === 'builder') {
-                const triSize = this.size * 0.25;
-                const offset = this.size * 0.3;
-                p.noStroke();
-                p.fill(0, 0, 0, 100);
-                p.triangle(cX, cY - offset - triSize, cX - triSize, cY - offset, cX + triSize, cY - offset);
-                p.triangle(cX, cY + offset + triSize, cX - triSize, cY + offset, cX + triSize, cY + offset);
-                p.triangle(cX - offset - triSize, cY, cX - offset, cY - triSize, cX - offset, cY + triSize);
-                p.triangle(cX + offset + triSize, cY, cX + offset, cY - triSize, cX + offset, cY + triSize);
-                p.fill(135, 206, 250);
-                p.triangle(cX, cY - offset - triSize + 1, cX - triSize + 1, cY - offset, cX + triSize - 1, cY - offset);
-                p.triangle(cX, cY + offset + triSize - 1, cX - triSize + 1, cY + offset, cX + triSize - 1, cY + offset);
-                p.triangle(cX - offset - triSize + 1, cY, cX - offset, cY - triSize + 1, cX - offset, cY + triSize - 1);
-                p.triangle(cX + offset + triSize - 1, cY, cX + offset, cY - triSize + 1, cX + offset, cY + triSize - 1);
-            } else if (this.overlay === 'mine') { 
-                 const a = p.map(p.sin(p.frameCount * 0.05), -1, 1, 100, 255);
-                p.stroke(255, 99, 71, a); p.strokeWeight(2); p.noFill(); p.ellipse(cX, cY, auraSize); p.ellipse(cX, cY, auraSize*0.5); 
-            } else if (this.overlay === 'zapper') {
-                p.push();
-                p.translate(cX, cY);
-                const coreColor = p.color(148, 0, 211);
-                const glowColor = p.color(221, 160, 221);
-                const extrusion = 1;
-                const layerWidth = totalWidth * 0.8;
-                const layerHeight = totalHeight * 0.8;
-                const shadowColor = p.lerpColor(coreColor, p.color(0), 0.4);
-
-                p.noStroke();
-                p.fill(shadowColor);
-                p.rect(-layerWidth / 2, -layerHeight / 2 + extrusion, layerWidth, layerHeight, 15);
-                p.fill(coreColor);
-                p.rect(-layerWidth / 2, -layerHeight / 2, layerWidth, layerHeight, 15);
-
-                const corePulse = p.map(p.sin(p.frameCount * 0.2), -1, 1, 0.2, 0.5);
-                glowColor.setAlpha(150);
-                p.fill(glowColor);
-                p.rect(-layerWidth / 2 * corePulse, -layerHeight / 2 * corePulse, layerWidth * corePulse, layerHeight * corePulse, 8);
-                p.pop();
-            } else if (this.overlay === 'zap_battery') {
-                p.push();
-                p.translate(cX, cY);
-                p.noStroke();
-                p.fill(148, 0, 211, 200); // Deep purple
-                const ellipseW = totalWidth * 0.4;
-                const ellipseH = totalWidth * 0.15;
-                const offset = totalWidth * 0.2;
-                // The 4 ellipses for the crosshair
-                p.ellipse(offset, 0, ellipseW, ellipseH);  // Right arm
-                p.ellipse(-offset, 0, ellipseW, ellipseH); // Left arm
-                p.ellipse(0, offset, ellipseH, ellipseW);  // Down arm
-                p.ellipse(0, -offset, ellipseH, ellipseW); // Up arm
-                // Central glow
-                const glow = p.map(p.sin(p.frameCount * 0.1), -1, 1, 150, 255);
-                p.fill(221, 160, 221, glow);
-                p.ellipse(0, 0, totalWidth * 0.25);
-                p.pop();
+            if (drawCustomOverlay(p, this, pos.x, pos.y, this.size, ballsInPlay)) {
+                // If custom visual drew, skip standard handling for that overlay type
+                // but we might want to continue for non-custom types
+                if (['spike','sniper','laser'].includes(this.overlay)) {
+                    // Do nothing else, custom visual handled it
+                }
+                else {
+                     // Fallback or additional effects if needed
+                }
+            } else {
+                const auraSize = this.size * 0.7;
+                if (this.overlay === 'healer') { 
+                    const pulseSize = auraSize * p.map(p.sin(p.frameCount * 0.1), -1, 1, 0.9, 1.1);
+                    const pulseAlpha = p.map(p.sin(p.frameCount * 0.1), -1, 1, 32, 64);
+                    p.noFill();
+                    p.strokeWeight(2);
+                    p.stroke(255, 255, 255, pulseAlpha);
+                    p.ellipse(cX, cY, pulseSize * 1.2);
+                    p.stroke(255, 255, 255, pulseAlpha * 0.8);
+                    p.ellipse(cX, cY, pulseSize * 1.5);
+                } else if (this.overlay === 'builder') {
+                    const triSize = this.size * 0.25;
+                    const offset = this.size * 0.3;
+                    p.noStroke();
+                    p.fill(0, 0, 0, 100);
+                    p.triangle(cX, cY - offset - triSize, cX - triSize, cY - offset, cX + triSize, cY - offset);
+                    p.triangle(cX, cY + offset + triSize, cX - triSize, cY + offset, cX + triSize, cY + offset);
+                    p.triangle(cX - offset - triSize, cY, cX - offset, cY - triSize, cX - offset, cY + triSize);
+                    p.triangle(cX + offset + triSize, cY, cX + offset, cY - triSize, cX + offset, cY + triSize);
+                    p.fill(135, 206, 250);
+                    p.triangle(cX, cY - offset - triSize + 1, cX - triSize + 1, cY - offset, cX + triSize - 1, cY - offset);
+                    p.triangle(cX, cY + offset + triSize - 1, cX - triSize + 1, cY + offset, cX + triSize - 1, cY + offset);
+                    p.triangle(cX - offset - triSize + 1, cY, cX - offset, cY - triSize + 1, cX - offset, cY + triSize - 1);
+                    p.triangle(cX + offset + triSize - 1, cY, cX + offset, cY - triSize + 1, cX + offset, cY + triSize - 1);
+                } else if (this.overlay === 'mine') { 
+                     const a = p.map(p.sin(p.frameCount * 0.05), -1, 1, 100, 255);
+                    p.stroke(255, 99, 71, a); p.strokeWeight(2); p.noFill(); p.ellipse(cX, cY, auraSize); p.ellipse(cX, cY, auraSize*0.5); 
+                } else if (this.overlay === 'zapper') {
+                    p.push();
+                    p.translate(cX, cY);
+                    const coreColor = p.color(148, 0, 211);
+                    const glowColor = p.color(221, 160, 221);
+                    const extrusion = 1;
+                    const layerWidth = totalWidth * 0.8;
+                    const layerHeight = totalHeight * 0.8;
+                    const shadowColor = p.lerpColor(coreColor, p.color(0), 0.4);
+    
+                    p.noStroke();
+                    p.fill(shadowColor);
+                    p.rect(-layerWidth / 2, -layerHeight / 2 + extrusion, layerWidth, layerHeight, 15);
+                    p.fill(coreColor);
+                    p.rect(-layerWidth / 2, -layerHeight / 2, layerWidth, layerHeight, 15);
+    
+                    const corePulse = p.map(p.sin(p.frameCount * 0.2), -1, 1, 0.2, 0.5);
+                    glowColor.setAlpha(150);
+                    p.fill(glowColor);
+                    p.rect(-layerWidth / 2 * corePulse, -layerHeight / 2 * corePulse, layerWidth * corePulse, layerHeight * corePulse, 8);
+                    p.pop();
+                } else if (this.overlay === 'zap_battery') {
+                    p.push();
+                    p.translate(cX, cY);
+                    p.noStroke();
+                    p.fill(148, 0, 211, 200); // Deep purple
+                    const ellipseW = totalWidth * 0.4;
+                    const ellipseH = totalWidth * 0.15;
+                    const offset = totalWidth * 0.2;
+                    // The 4 ellipses for the crosshair
+                    p.ellipse(offset, 0, ellipseW, ellipseH);  // Right arm
+                    p.ellipse(-offset, 0, ellipseW, ellipseH); // Left arm
+                    p.ellipse(0, offset, ellipseH, ellipseW);  // Down arm
+                    p.ellipse(0, -offset, ellipseH, ellipseW); // Up arm
+                    // Central glow
+                    const glow = p.map(p.sin(p.frameCount * 0.1), -1, 1, 150, 255);
+                    p.fill(221, 160, 221, glow);
+                    p.ellipse(0, 0, totalWidth * 0.25);
+                    p.pop();
+                } else if (this.overlay === 'spike') {
+                     this.drawSpikeOverlay(board, pos); // Fallback if custom fails
+                }
             }
          }
          
         if (state.isDebugView) {
-            const cX = pos.x + totalWidth / 2;
-            const cY = pos.y + totalHeight / 2;
+            const hpText = `${Math.ceil(this.health)}`;
+            const hasCoinText = this.coins > 0;
+            const coinText = hasCoinText ? `${Math.ceil(this.coins)}` : '';
+            
             p.textAlign(p.CENTER, p.CENTER);
             const textSize = this.size * 0.3;
             p.textSize(textSize);
             p.noStroke();
 
-            const hpText = `${Math.ceil(this.health)}`;
-            const hasCoinText = this.coins > 0;
-            const coinText = hasCoinText ? `${Math.ceil(this.coins)}` : '';
-            
             let panelWidth = p.textWidth(hpText);
             let panelHeight;
             if (hasCoinText) {

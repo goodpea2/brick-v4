@@ -4,7 +4,7 @@ import { Brick } from './brick.js';
 
 export function handleBrickSpawnPowerup(effect, context) {
     const { p, board, bricks, processEvents, processBrokenBricks } = context;
-    const { center, coinChance } = effect;
+    const { center, coinChance, bonusMines = 0 } = effect;
     const tiles = BALL_STATS.types.brick.spawnRadiusTiles;
     const radius = tiles * board.gridUnitSize;
     const gridPositions = new Set();
@@ -32,6 +32,7 @@ export function handleBrickSpawnPowerup(effect, context) {
     processBrokenBricks(null, context);
     
     const spotsForNewBricks = emptySpotsToFill.concat(bricksToKillAndReplace.map(item => item.pos));
+    const newBricks = [];
     spotsForNewBricks.forEach(pos => {
         const newBrick = new Brick(p, pos.c - 6, pos.r - 6, 'normal', 10, board.gridUnitSize);
         if (p.random() < coinChance) {
@@ -40,5 +41,14 @@ export function handleBrickSpawnPowerup(effect, context) {
             newBrick.maxCoins = coinsToAdd;
         }
         bricks[pos.c][pos.r] = newBrick;
+        newBricks.push(newBrick);
     });
+
+    // Apply bonus mines from enchantment
+    if (bonusMines > 0 && newBricks.length > 0) {
+        p.shuffle(newBricks, true);
+        for (let i = 0; i < Math.min(bonusMines, newBricks.length); i++) {
+            newBricks[i].overlay = 'mine';
+        }
+    }
 }

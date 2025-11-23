@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -160,6 +161,7 @@
         pointer-events: all;
         display: flex;
         gap: 10px;
+        flex-wrap: wrap;
     }
     .bottom-left-btn {
         position: static;
@@ -204,7 +206,7 @@
       max-width: 800px;
       position: relative;
       box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-      max-height: 85vh; /* Make modal scrollable on tall screens */
+      max-height: 95vh; /* Make modal scrollable on tall screens */
       overflow-y: auto;
       text-align: center;
     }
@@ -378,6 +380,8 @@
     .shop-header-left {
         display: flex;
         gap: 10px;
+        align-items: center;
+        font-size: 1.2em;
     }
     .shop-utility-btn {
         background: none;
@@ -484,7 +488,7 @@
         align-items: center;
         /* Scrolling properties */
         overflow-x: auto;
-        max-width: 35vh;
+        max-width: 95vh;
         -ms-overflow-style: none; /* IE and Edge */
         scrollbar-width: none; /* Firefox */
     }
@@ -511,7 +515,7 @@
         text-align: left;
         border-radius: 6px;
         padding: 8px;
-        z-index: 101;
+        z-index: 1001; /* High z-index */
         opacity: 0;
         transition: opacity 0.15s, visibility 0.15s;
         font-size: 12px;
@@ -532,28 +536,32 @@
     #ballTooltip .tooltip-equip-icon {
         font-size: 14px;
     }
-
-    #openEquipmentBtn {
-        border: none;
-        background: none;
-        color: var(--color-text);
-        cursor: pointer;
-        font-family: 'Inconsolata', monospace;
-        font-size: 14px;
-        padding: 5px 10px;
-        margin-right: 5px;
-        border-radius: 5px;
-        transition: background-color 0.2s;
-        position: relative;
+    #ballTooltip .tooltip-stats {
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid var(--color-sidebar-border);
     }
-    #openEquipmentBtn:hover {
-        background-color: var(--color-bg3);
+    #ballTooltip .tooltip-stats ul {
+        list-style: none;
+        padding: 0;
+        font-size: 11px;
+    }
+    #ballTooltip .tooltip-stats li {
+        display: flex;
+        justify-content: space-between;
+    }
+    #ballTooltip .tooltip-stats li span:first-child {
+        color: #aaa;
+    }
+
+    #run-equipment-btn {
+        position: relative;
     }
     @keyframes glow {
       0%, 100% { box-shadow: 0 0 3px #00e5ff; }
       50% { box-shadow: 0 0 12px #00e5ff, 0 0 15px #00e5ff; }
     }
-    #openEquipmentBtn.glow {
+    #run-equipment-btn.glow {
         animation: glow 1.5s infinite;
     }
 
@@ -768,9 +776,13 @@
         text-align: right;
         padding: 6px 6px;
     }
-    .food-bank {
+    .food-bank, .metal-bank {
+		height: 30px;
+		padding-top: 2px;
     }
-    .wood-bank {
+    .wood-bank, .wire-bank, .fuel-bank {
+		height: 30px;
+		padding-top: 2px;
     }
     .resource-bar-fill {
         position: absolute;
@@ -791,25 +803,10 @@
     #wood-bar-fill {
         background-color: rgba(139, 90, 43, 0.5); /* Brown */
     }
-    .resource-bank .tooltip {
-        visibility: hidden;
-        position: absolute;
-        bottom: 110%;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: var(--color-bg);
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 0.8em;
-        opacity: 0;
-        transition: opacity 0.2s;
-        white-space: nowrap;
-        z-index: 2;
-    }
-    .resource-bank:hover .tooltip {
-        visibility: visible;
-        opacity: 1;
-    }
+    .metal-bank { border: 2px solid #a9a9a9; }
+    .wire-bank { border: 2px solid #d2691e; }
+    .fuel-bank { border: 2px solid #add8e6; }
+
 
     .top-right-controls {
         position: absolute;
@@ -853,6 +850,17 @@
         flex-direction: column;
         gap: 5px;
         align-items: flex-end;
+        max-height: calc(100vh - 150px);
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+    
+    body.homebase-mode .top-right-controls {
+        top: 130px;
+    }
+    body.homebase-mode #cheat-buttons-container {
+        top: 180px;
+        max-height: calc(100vh - 200px);
     }
 
     #cheat-buttons-container .debug-toggle-group {
@@ -989,7 +997,7 @@
     .equipment-ui {
         display: flex;
         flex-direction: column;
-        height: 80vh;
+        height: 95vh;
         max-height: 700px;
         position: relative;
     }
@@ -1293,7 +1301,7 @@
         align-items: flex-start;
         pointer-events: none;
     }
-    #left-context-panel, #run-loot-panel {
+    #left-context-panel, #run-loot-panel, #invasion-loot-panel {
          pointer-events: all;
     }
     
@@ -1364,7 +1372,7 @@
         font-size: 1.2em;
         font-weight: bold;
     }
-    #run-loot-panel h4 {
+    #run-loot-panel h4, #invasion-loot-panel h4 {
         margin: 0 0 8px 0;
         font-size: 0.8em;
         color: #ccc;
@@ -1386,13 +1394,15 @@
         padding-bottom: 4px;
     }
     
-    #ball-producer-ui .producer-header {
+    #ball-producer-ui .producer-header,
+    #invasion-shop-ui .producer-header {
         display: flex;
         justify-content: space-between;
         align-items: baseline;
         margin-bottom: 10px;
     }
-    #ball-producer-ui .producer-header h4 {
+    #ball-producer-ui .producer-header h4,
+    #invasion-shop-ui .producer-header h4 {
         margin: 0;
         border: none;
         padding: 0;
@@ -1403,14 +1413,16 @@
     }
     
     #ball-producer-ui .producer-grid,
-    #empty-cage-ui .producer-grid {
+    #empty-cage-ui .producer-grid,
+    #invasion-shop-ui .producer-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 8px;
     }
     
     #ball-producer-ui .producer-card,
-    #empty-cage-ui .producer-card {
+    #empty-cage-ui .producer-card,
+    #invasion-shop-ui .producer-card {
         background: var(--color-bg2);
         border: 1px solid var(--color-sidebar-border);
         color: var(--color-text);
@@ -1429,10 +1441,12 @@
         min-height: 80px;
     }
     #ball-producer-ui .producer-card:hover:not(:disabled),
-    #empty-cage-ui .producer-card:not(.empty-slot):hover {
+    #empty-cage-ui .producer-card:not(.empty-slot):hover,
+    #invasion-shop-ui .producer-card:hover:not(:disabled) {
         background-color: var(--color-bg3);
     }
-    #ball-producer-ui .producer-card:disabled {
+    #ball-producer-ui .producer-card:disabled,
+    #invasion-shop-ui .producer-card:disabled {
         opacity: 0.5;
         cursor: not-allowed;
         background-color: var(--color-bg2);
@@ -1562,16 +1576,18 @@
         right: 10px;
         top: 50%;
         transform: translateY(-50%);
-        width: 280px;
+        width: 240px;
         background-color: var(--color-bg2);
         border-radius: 8px;
         border: 1px solid var(--color-sidebar-border);
-        padding: 20px;
+        padding: 10px;
         color: var(--color-text);
         display: flex;
         flex-direction: column;
         gap: 15px;
         font-size: 14px;
+        max-height: 85vh; /* Limit height */
+        overflow-y: auto; /* Allow scrolling */
     }
     .brick-info-header {
         display: flex;
@@ -1597,21 +1613,21 @@
         color: #ccc;
         font-style: italic;
     }
-    #brick-info-stats {
+    #brick-info-stats, #overlay-info-stats {
         list-style: none;
         padding: 0;
         display: flex;
         flex-direction: column;
         gap: 8px;
     }
-    #brick-info-stats li {
+    #brick-info-stats li, #overlay-info-stats li {
         display: flex;
         justify-content: space-between;
     }
-    #brick-info-stats li span:first-child {
+    #brick-info-stats li span:first-child, #overlay-info-stats li span:first-child {
         color: #aaa;
     }
-    #brick-info-stats li span:last-child {
+    #brick-info-stats li span:last-child, #overlay-info-stats li span:last-child {
         font-weight: bold;
     }
     .upgrade-section {
@@ -1655,7 +1671,7 @@
         font-size: 2em;
         color: #aaa;
     }
-    #brick-upgrade-btn {
+    #brick-upgrade-btn, #overlay-upgrade-btn {
         width: 100%;
         background-color: var(--color-bg3);
         border: none;
@@ -1667,10 +1683,14 @@
         cursor: pointer;
         transition: background-color 0.2s;
     }
-    #brick-upgrade-btn:hover:not(:disabled) {
+    #brick-upgrade-btn:hover:not(:disabled), #overlay-upgrade-btn:hover:not(:disabled) {
         background-color: #555;
     }
     
+    #overlay-move-btn {
+        width: 100%;
+        margin-top: 10px;
+    }
     
     /* Game Mode Modals */
     .gamemode-selection {
@@ -1728,7 +1748,7 @@
     /* Enchantment UI */
     .enchant-stats-display h3 {
       font-size: 1.2em;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       font-weight: bold;
     }
     .enchant-stats-display ul {
@@ -1737,7 +1757,6 @@
         margin-top: 10px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
     }
     .enchant-stats-display li {
         display: grid;
@@ -1770,7 +1789,6 @@
         background-color: var(--color-bg);
         border-radius: 6px;
         overflow: hidden;
-        margin-top: 8px;
         border: 1px solid var(--color-sidebar-border);
     }
     .enchant-controls .progress-bar-fill {
@@ -1812,13 +1830,13 @@
     @media (orientation: landscape) {
         #ballSelector {
             left: 30px;
-            top: 70%;
+            top: 65%;
             bottom: auto;
             transform: translateY(-50%);
             flex-direction: column;
             overflow-y: auto;
             overflow-x: hidden;
-            max-height: 35vh;
+            max-height: 43vh;
             max-width: initial;
         }
         
@@ -1908,18 +1926,16 @@
     </div>
     <div id="game-ui-overlay">
         <div class="top-right-hud">
-            <div class="gem-bank" title="Open Skill Tree">
+            <div class="gem-bank">
                  <span id="gem-stat">0</span> 💎
             </div>
              <div class="resource-bank food-bank">
                 <div class="resource-bar-fill" id="food-bar-fill"></div>
                 <span class="resource-text"><span id="food-stat">1000</span> 🥕</span>
-                <div class="tooltip">Max: 1000</div>
             </div>
             <div class="resource-bank wood-bank">
                 <div class="resource-bar-fill" id="wood-bar-fill"></div>
                 <span class="resource-text"><span id="wood-stat">1000</span> 🪵</span>
-                <div class="tooltip">Max: 1000</div>
             </div>
         </div>
         <!-- Hidden elements for programmatic clicks -->
@@ -1944,18 +1960,27 @@
                 <label><input type="checkbox" id="toggleEventLog"> Show Event Logs</label>
                 <label><input type="checkbox" id="toggleEquipmentDebug"> Show Equip Logs</label>
             </div>
+            <button id="cheatFillCagesBtn" class="cheat-btn">Fill All Cages</button>
+            <button id="cheatSpeedUpBtn" class="cheat-btn">x20 Speed (3s)</button>
+            <button id="cheatLevelUpAllBtn" class="cheat-btn">Level Up Base +1</button>
             <button id="cheatCoinBtn" class="cheat-btn">+1000 🪙</button>
             <button id="cheatGemBtn" class="cheat-btn">+500 💎</button>
             <button id="cheatXpBtn" class="cheat-btn">+5000 XP</button>
             <button id="cheatLevelBtn" class="cheat-btn">+10 Lvl</button>
             <button id="cheatFoodBtn" class="cheat-btn">+10k 🥕</button>
             <button id="cheatWoodBtn" class="cheat-btn">+10k 🪵</button>
+            <button id="cheatEnchantersBtn" class="cheat-btn">+100 All Materials</button>
+            <button id="cheatEnchantAllBtn" class="cheat-btn">Enchant All x1</button>
             <button id="cheatGiantBallBtn" class="cheat-btn">+1 Giant</button>
             <button id="cheatGoldenShotBtn" class="cheat-btn">Trigger Golden</button>
             <button id="cheatGetAllEqCommon" class="cheat-btn">All Common Eq</button>
             <button id="cheatGetAllEqRare" class="cheat-btn">All Rare Eq</button>
             <button id="cheatGetAllEqEpic" class="cheat-btn">All Epic Eq</button>
             <button id="cheatUnlockSkillsBtn" class="cheat-btn">Unlock All Skills</button>
+            <button id="cheatFoodRoomBtn" class="cheat-btn">Go to Food Room</button>
+            <button id="cheatWoodRoomBtn" class="cheat-btn">Go to Wood Room</button>
+            <button id="cheatDangerRoomBtn" class="cheat-btn">Go to Danger Room</button>
+            <button id="cheatLuckyRoomBtn" class="cheat-btn">Go to Lucky Room</button>
             <button id="cheatEndTurnBtn" class="cheat-btn">End Turn</button>
         </div>
     </div>
@@ -1964,7 +1989,6 @@
       <div class="main-container">
         <div id="canvas-container"></div>
          <div id="ballSelector" class="hidden">
-            <button id="openEquipmentBtn">Equip</button>
             <button class="ball-select-btn active" data-ball-type="classic">
                 <div class="ball-visual"></div>
                 <span class="ball-count-badge hidden"></span>
@@ -1999,7 +2023,6 @@
             </button>
         </div>
         <div id="ballSelectorArrow">▼</div>
-        <div id="ballTooltip" class="hidden"></div>
         <div id="left-ui-container">
             <div id="left-context-panel" class="hidden">
                 <div class="level-display">
@@ -2040,6 +2063,17 @@
                     <h4>STORED BALLS</h4>
                     <div class="producer-grid"></div>
                 </div>
+                <div id="invasion-shop-ui" class="context-section hidden">
+                    <div class="producer-header">
+                        <h4>INVASION SHOP</h4>
+                        <span class="shop-header-right" style="font-size: 1em; color: #FFD700;">
+                            <span id="invasion-shop-coin-count">0</span> 🪙
+                        </span>
+                    </div>
+                    <div class="producer-grid">
+                        <!-- Items will be injected here by JS -->
+                    </div>
+                </div>
             </div>
             <div id="run-loot-panel" class="context-section hidden">
                 <h4>Collected</h4>
@@ -2049,6 +2083,9 @@
                 <div class="loot-line">
                     <span>🪵</span> <span id="run-wood-count">0</span>
                 </div>
+            </div>
+             <div id="invasion-loot-panel" class="context-section hidden">
+                <!-- Content will be injected by JS -->
             </div>
         </div>
         <div id="editor-panel" class="hidden">
@@ -2083,12 +2120,25 @@
                 </div>
                 <button id="brick-upgrade-btn">Upgrade <span id="brick-upgrade-cost"></span></button>
             </div>
+            <div id="overlay-info-section" class="hidden">
+                 <div class="brick-info-header">
+                    <h3 id="overlay-info-name"></h3>
+                    <span id="overlay-info-level"></span>
+                </div>
+                <ul id="overlay-info-stats"></ul>
+                <div class="upgrade-section">
+                    <button id="overlay-upgrade-btn">Upgrade <span id="overlay-upgrade-cost"></span></button>
+                    <button id="overlay-move-btn" class="modal-action-button secondary">Move</button>
+                </div>
+            </div>
         </div>
         <div class="bottom-left-controls">
             <button id="modeToggleBtn" class="bottom-left-btn hidden">Play</button>
             <button id="editBaseBtn" class="bottom-left-btn hidden">Edit Base</button>
             <button id="homeBaseShopBtn" class="bottom-left-btn hidden">Shop</button>
             <button id="enchantBtn" class="bottom-left-btn hidden">Enchant</button>
+            <button id="startNextWaveBtn" class="bottom-left-btn hidden">Start Next Wave</button>
+            <button id="saveGameBtn" class="bottom-left-btn hidden">Save Game</button>
         </div>
         <div class="toolbar">
            <button id="levelSettingsButton">Level Settings</button>
@@ -2101,159 +2151,186 @@
     </div>
   </div>
 
+  <div id="ballTooltip"></div>
+
   <!-- Level Generation Popup Panel -->
   <div id="levelSettingsModal" class="modal hidden">
     <div class="modal-content">
       <span class="close-button">&times;</span>
-      <h2>Level Generation Settings</h2>
-      <div class="settings-columns">
-        <div class="settings-column">
-          <h4>General</h4>
-           <div class="form-group">
-                <label for="seedInput">Seed:</label>
-                <input type="text" id="seedInput" placeholder="random">
+      <h2 id="levelSettingsTitle">Level Generation Settings</h2>
+      
+      <!-- Adventure/Trial Run Settings -->
+      <div id="adventureSettingsContainer">
+          <div class="settings-columns">
+            <div class="settings-column">
+              <h4>General</h4>
+               <div class="form-group">
+                    <label for="seedInput">Seed:</label>
+                    <input type="text" id="seedInput" placeholder="random">
+                </div>
+               <div class="form-group">
+                    <label for="levelPattern">Level Pattern:</label>
+                    <select id="levelPattern">
+                      <option value="scatter">Scatter</option>
+                      <option value="formulaic" selected>Formulaic</option>
+                      <option value="solid">Solid</option>
+                      <option value="checkerboard">Checkerboard</option>
+                      <option value="spiral">Spiral</option>
+                    </select>
+                </div>
+              <div class="form-group">
+                <label for="startingBalls">Starting Balls:</label>
+                <input type="number" id="startingBalls" value="5" min="1" max="10">
+              </div>
+              <div class="form-group">
+                <label for="ballSpeed">Ball Speed:</label>
+                <input type="range" id="ballSpeed" min="0.1" max="2" step="0.1" value="0.4">
+                <span id="ballSpeedValue">0.4</span>
+              </div>
+               <div class="form-group">
+                <label for="volumeSlider">Volume:</label>
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.3">
+                <span id="volumeValue">0.30</span>
+              </div>
+              <hr>
+              <h4>Brick Settings</h4>
+              <div class="form-group">
+                <label for="goalBricks">Goal Bricks:</label>
+                <input type="number" id="goalBricks" value="3" min="1" max="50">
+              </div>
+              <div class="form-group">
+                <label for="goalBrickCountIncrement">Goal Bricks/Lvl:</label>
+                <input type="number" id="goalBrickCountIncrement" value="0.25" min="0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label for="goalBrickCap">Goal Brick Cap:</label>
+                <input type="number" id="goalBrickCap" value="8" min="1">
+              </div>
+              <div class="form-group">
+                <label for="goalBrickMaxHp">Goal Brick Max HP:</label>
+                <input type="number" id="goalBrickMaxHp" value="100" min="10">
+              </div>
+              <div class="form-group">
+                <label for="extraBallBricks">+1 Ball Bricks:</label>
+                <input type="number" id="extraBallBricks" value="1" min="0" max="20">
+              </div>
+               <div class="form-group">
+                <label for="explosiveBrickChance">Explosive Chance:</label>
+                <input type="range" id="explosiveBrickChance" min="0" max="1" step="0.01" value="0.04">
+                <span id="explosiveBrickChanceValue">0.04</span>
+              </div>
+               <div class="form-group">
+                <label for="ballCageBrickChance">Ball Cage Chance:</label>
+                <input type="range" id="ballCageBrickChance" min="0" max="1" step="0.01" value="0.05">
+                <span id="ballCageBrickChanceValue">0.05</span>
+              </div>
+               <hr>
+               <h4>Bonus Level</h4>
+               <div class="form-group">
+                <label for="bonusLevelInterval">Bonus Interval:</label>
+                <input type="number" id="bonusLevelInterval" value="5" min="2">
+              </div>
+              <div class="form-group">
+                <label for="minCoinBonusMultiplier">Min Multiplier:</label>
+                <input type="number" id="minCoinBonusMultiplier" value="7" min="1">
+              </div>
+               <div class="form-group">
+                <label for="maxCoinBonusMultiplier">Max Multiplier:</label>
+                <input type="number" id="maxCoinBonusMultiplier" value="10" min="1">
+              </div>
             </div>
-           <div class="form-group">
-                <label for="levelPattern">Level Pattern:</label>
-                <select id="levelPattern">
-                  <option value="scatter">Scatter</option>
-                  <option value="formulaic" selected>Formulaic</option>
-                  <option value="solid">Solid</option>
-                  <option value="checkerboard">Checkerboard</option>
-                  <option value="spiral">Spiral</option>
-                </select>
+            <div class="settings-column">
+              <h4>Difficulty Progression</h4>
+              <div class="form-group">
+                <label for="brickCount">Starting Bricks:</label>
+                <input type="number" id="brickCount" value="15" min="1" max="300">
+              </div>
+              <div class="form-group">
+                <label for="brickCountIncrement">Bricks per Level:</label>
+                <input type="number" id="brickCountIncrement" value="8" min="0" max="50">
+              </div>
+                <div class="form-group">
+                <label for="maxBrickCount">Max Bricks:</label>
+                <input type="number" id="maxBrickCount" value="100" min="10" max="500">
+              </div>
+               <div class="form-group">
+                <label for="fewBrickLayoutChance">Few Brick Chance:</label>
+                <input type="range" id="fewBrickLayoutChance" min="0" max="1" step="0.01" value="0.15">
+                <span id="fewBrickLayoutChanceValue">0.15</span>
+              </div>
+              <div class="form-group">
+                <label for="fewBrickLayoutChanceMinLevel">Min Level for Few Bricks:</label>
+                <input type="number" id="fewBrickLayoutChanceMinLevel" value="10" min="1">
+              </div>
+              <div class="form-group">
+                <label for="startingBrickHp">Starting HP Pool:</label>
+                <input type="number" id="startingBrickHp" value="100" min="1">
+              </div>
+               <div class="form-group">
+                <label for="brickHpIncrement">HP Pool per Level:</label>
+                <input type="number" id="brickHpIncrement" value="80" min="0">
+              </div>
+              <div class="form-group">
+                <label for="brickHpIncrementMultiplier">HP Multiplier/Lvl:</label>
+                <input type="number" id="brickHpIncrementMultiplier" value="1.05" min="1" step="0.01">
+              </div>
+               <div class="form-group">
+                <label for="maxBrickHpIncrement">Max HP Incr/Lvl:</label>
+                <input type="number" id="maxBrickHpIncrement" value="500" min="0">
+              </div>
+              <hr>
+              <h4>Brick Overlays & Special Bricks</h4>
+               <div class="form-group">
+                <label for="builderBrickChance">Builder Chance:</label>
+                <input type="number" id="builderBrickChance" min="0" max="1" step="0.01" value="0.03">
+              </div>
+               <div class="form-group">
+                <label for="healerBrickChance">Healer Chance:</label>
+                <input type="number" id="healerBrickChance" min="0" max="1" step="0.01" value="0.03">
+              </div>
+              <hr>
+              <h4>Coin Settings</h4>
+               <div class="form-group">
+                <label for="startingCoin">Coin Pool for Bricks:</label>
+                <input type="number" id="startingCoin" value="3" min="0">
+              </div>
+               <div class="form-group">
+                <label for="coinIncrement">Coin Pool per Level:</label>
+                <input type="number" id="coinIncrement" value="3" min="0">
+              </div>
+                <div class="form-group">
+                <label for="maxCoin">Max Coin Pool:</label>
+                <input type="number"id="maxCoin" value="300" min="0">
+              </div>
             </div>
-          <div class="form-group">
-            <label for="startingBalls">Starting Balls:</label>
-            <input type="number" id="startingBalls" value="5" min="1" max="10">
           </div>
-          <div class="form-group">
-            <label for="ballSpeed">Ball Speed:</label>
-            <input type="range" id="ballSpeed" min="0.1" max="2" step="0.1" value="0.4">
-            <span id="ballSpeedValue">0.4</span>
+          <div class="level-io-buttons">
+              <button id="exportLevelBtn" class="modal-action-button">Export Level</button>
+              <button id="importLevelBtn" class="modal-action-button">Import Level</button>
+              <button id="levelEditorBtn" class="modal-action-button">Level Editor</button>
           </div>
-           <div class="form-group">
-            <label for="volumeSlider">Volume:</label>
-            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.3">
-            <span id="volumeValue">0.30</span>
-          </div>
-          <hr>
-          <h4>Brick Settings</h4>
-          <div class="form-group">
-            <label for="goalBricks">Goal Bricks:</label>
-            <input type="number" id="goalBricks" value="3" min="1" max="50">
-          </div>
-          <div class="form-group">
-            <label for="goalBrickCountIncrement">Goal Bricks/Lvl:</label>
-            <input type="number" id="goalBrickCountIncrement" value="0.25" min="0" step="0.01">
-          </div>
-          <div class="form-group">
-            <label for="goalBrickCap">Goal Brick Cap:</label>
-            <input type="number" id="goalBrickCap" value="8" min="1">
-          </div>
-          <div class="form-group">
-            <label for="goalBrickMaxHp">Goal Brick Max HP:</label>
-            <input type="number" id="goalBrickMaxHp" value="100" min="10">
-          </div>
-          <div class="form-group">
-            <label for="extraBallBricks">+1 Ball Bricks:</label>
-            <input type="number" id="extraBallBricks" value="1" min="0" max="20">
-          </div>
-           <div class="form-group">
-            <label for="explosiveBrickChance">Explosive Chance:</label>
-            <input type="range" id="explosiveBrickChance" min="0" max="1" step="0.01" value="0.04">
-            <span id="explosiveBrickChanceValue">0.04</span>
-          </div>
-           <div class="form-group">
-            <label for="ballCageBrickChance">Ball Cage Chance:</label>
-            <input type="range" id="ballCageBrickChance" min="0" max="1" step="0.01" value="0.05">
-            <span id="ballCageBrickChanceValue">0.05</span>
-          </div>
-           <hr>
-           <h4>Bonus Level</h4>
-           <div class="form-group">
-            <label for="bonusLevelInterval">Bonus Interval:</label>
-            <input type="number" id="bonusLevelInterval" value="5" min="2">
-          </div>
-          <div class="form-group">
-            <label for="minCoinBonusMultiplier">Min Multiplier:</label>
-            <input type="number" id="minCoinBonusMultiplier" value="7" min="1">
-          </div>
-           <div class="form-group">
-            <label for="maxCoinBonusMultiplier">Max Multiplier:</label>
-            <input type="number" id="maxCoinBonusMultiplier" value="10" min="1">
-          </div>
-        </div>
-        <div class="settings-column">
-          <h4>Difficulty Progression</h4>
-          <div class="form-group">
-            <label for="brickCount">Starting Bricks:</label>
-            <input type="number" id="brickCount" value="15" min="1" max="300">
-          </div>
-          <div class="form-group">
-            <label for="brickCountIncrement">Bricks per Level:</label>
-            <input type="number" id="brickCountIncrement" value="8" min="0" max="50">
-          </div>
-            <div class="form-group">
-            <label for="maxBrickCount">Max Bricks:</label>
-            <input type="number" id="maxBrickCount" value="100" min="10" max="500">
-          </div>
-           <div class="form-group">
-            <label for="fewBrickLayoutChance">Few Brick Chance:</label>
-            <input type="range" id="fewBrickLayoutChance" min="0" max="1" step="0.01" value="0.15">
-            <span id="fewBrickLayoutChanceValue">0.15</span>
-          </div>
-          <div class="form-group">
-            <label for="fewBrickLayoutChanceMinLevel">Min Level for Few Bricks:</label>
-            <input type="number" id="fewBrickLayoutChanceMinLevel" value="10" min="1">
-          </div>
-          <div class="form-group">
-            <label for="startingBrickHp">Starting HP Pool:</label>
-            <input type="number" id="startingBrickHp" value="100" min="1">
-          </div>
-           <div class="form-group">
-            <label for="brickHpIncrement">HP Pool per Level:</label>
-            <input type="number" id="brickHpIncrement" value="80" min="0">
-          </div>
-          <div class="form-group">
-            <label for="brickHpIncrementMultiplier">HP Multiplier/Lvl:</label>
-            <input type="number" id="brickHpIncrementMultiplier" value="1.05" min="1" step="0.01">
-          </div>
-           <div class="form-group">
-            <label for="maxBrickHpIncrement">Max HP Incr/Lvl:</label>
-            <input type="number" id="maxBrickHpIncrement" value="500" min="0">
-          </div>
-          <hr>
-          <h4>Brick Overlays & Special Bricks</h4>
-           <div class="form-group">
-            <label for="builderBrickChance">Builder Chance:</label>
-            <input type="number" id="builderBrickChance" min="0" max="1" step="0.01" value="0.03">
-          </div>
-           <div class="form-group">
-            <label for="healerBrickChance">Healer Chance:</label>
-            <input type="number" id="healerBrickChance" min="0" max="1" step="0.01" value="0.03">
-          </div>
-          <hr>
-          <h4>Coin Settings</h4>
-           <div class="form-group">
-            <label for="startingCoin">Coin Pool for Bricks:</label>
-            <input type="number" id="startingCoin" value="3" min="0">
-          </div>
-           <div class="form-group">
-            <label for="coinIncrement">Coin Pool per Level:</label>
-            <input type="number" id="coinIncrement" value="3" min="0">
-          </div>
-            <div class="form-group">
-            <label for="maxCoin">Max Coin Pool:</label>
-            <input type="number"id="maxCoin" value="300" min="0">
-          </div>
-        </div>
       </div>
-      <div class="level-io-buttons">
-          <button id="exportLevelBtn" class="modal-action-button">Export Level</button>
-          <button id="importLevelBtn" class="modal-action-button">Import Level</button>
-          <button id="levelEditorBtn" class="modal-action-button">Level Editor</button>
+      
+      <!-- Invasion Defend Settings -->
+      <div id="invasionSettingsContainer" class="hidden">
+          <div class="form-group">
+              <label for="startingHPPool">Starting HP Pool:</label>
+              <input type="number" id="startingHPPool" value="150" min="10">
+          </div>
+          <div class="form-group">
+              <label for="hpPoolIncrementPerWave">HP Pool Incr/Wave:</label>
+              <input type="number" id="hpPoolIncrementPerWave" value="50" min="0">
+          </div>
+          <div class="form-group">
+              <label for="minEnemyTypes">Min Enemy Types / Wave:</label>
+              <input type="number" id="minEnemyTypes" value="1" min="1" max="5">
+          </div>
+          <div class="form-group">
+              <label for="maxEnemyTypes">Max Enemy Types / Wave:</label>
+              <input type="number" id="maxEnemyTypes" value="3" min="1" max="5">
+          </div>
       </div>
+
       <button id="generateLevelButton" class="modal-action-button">Generate New Level</button>
     </div>
   </div>
@@ -2480,9 +2557,12 @@
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <div class="shop-header">
-                <div class="shop-header-left" style="font-size: 1.2em;">
-                    <span id="shopFoodCount">0</span> 🥕 &nbsp;
-                    <span id="shopWoodCount">0</span> 🪵
+                <div class="shop-header-left">
+                    <span><span id="shopFoodCount">0</span> 🥕</span>&nbsp;
+                    <span><span id="shopWoodCount">0</span> 🪵</span>&nbsp;
+                    <span><span id="shopMetalCount">0</span> 🪨</span>&nbsp;
+                    <span><span id="shopWireCount">0</span> 🪢</span>&nbsp;
+                    <span><span id="shopFuelCount">0</span> 🧊</span>
                 </div>
                 <h2>Home Base Shop</h2>
                 <div class="shop-header-right">
@@ -2517,6 +2597,20 @@
           <button id="importConfirmBtn" class="modal-action-button">Import</button>
       </div>
   </div>
+
+  <!-- Save Game Modal -->
+  <div id="saveGameModal" class="modal hidden">
+      <div class="modal-content">
+          <span class="close-button">&times;</span>
+          <h2>Save / Load Game</h2>
+          <p>Copy this text to save, or paste text here to load.</p>
+          <textarea id="saveGameTextarea"></textarea>
+          <div class="modal-button-group">
+            <button id="copySaveBtn" class="modal-action-button">Copy Save to Clipboard</button>
+            <button id="loadSaveBtn" class="modal-action-button secondary">Load Data</button>
+          </div>
+      </div>
+  </div>
   
   <!-- Game Mode Selection Modal -->
   <div id="gameModeModal" class="modal hidden">
@@ -2534,10 +2628,10 @@
                 <p id="trialRunDescription"></p>
                 <button id="trialRunBtn" class="modal-action-button">Play</button>
             </div>
-            <div class="gamemode-card locked">
+            <div class="gamemode-card">
                 <h3>Invasion Defend</h3>
                 <p id="invasionDefendDescription"></p>
-                <button class="modal-action-button" disabled>Locked</button>
+                <button id="invasionDefendBtn" class="modal-action-button">Play</button>
             </div>
         </div>
     </div>

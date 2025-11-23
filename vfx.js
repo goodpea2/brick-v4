@@ -1,5 +1,5 @@
 // vfx.js
-import { XP_SETTINGS } from './balancing.js';
+import { XP_SETTINGS, ENCHANTER_STATS } from './balancing.js';
 
 export class Particle { 
     constructor(p, x, y, c, velMag = 3, options={}) { 
@@ -271,6 +271,131 @@ export class XpOrb {
     }
 }
 
+export class EnchanterOrb {
+    constructor(p, x, y, type) {
+        this.p = p;
+        this.pos = p.createVector(x, y);
+        this.vel = p.constructor.Vector.random2D().mult(p.random(2, 5));
+        this.cooldown = XP_SETTINGS.invulnerableTime; // Reuse XP setting for initial cooldown
+        this.isAttracted = false;
+        this.radius = 6;
+        this.attractionForce = XP_SETTINGS.magneticStrength;
+        this.type = type;
+        this.icon = ENCHANTER_STATS[type]?.icon || '?';
+        
+        this.state = 'idle'; // idle, attracted, collecting
+        this.collectionTimer = 0;
+        this.maxCollectionTime = 15; // frames
+        this.randomOffset = p.random(p.TWO_PI);
+    }
+
+    collect() {
+        this.state = 'collecting';
+        this.collectionTimer = this.maxCollectionTime;
+    }
+
+    isFinished() {
+        return this.state === 'collecting' && this.collectionTimer <= 0;
+    }
+
+    update(attractors, timeMultiplier = 1) {
+        if (this.state === 'collecting') {
+            this.collectionTimer -= timeMultiplier;
+            return;
+        }
+        
+        if (this.cooldown > 0) {
+            this.cooldown -= timeMultiplier;
+            this.vel.mult(0.9);
+        } else if (attractors && attractors.length > 0) {
+            let closestDistSq = Infinity;
+            let closestAttractor = null;
+
+            for (const attractor of attractors) {
+                const dSq = this.p.constructor.Vector.sub(this.pos, attractor.pos).magSq();
+                if (dSq < closestDistSq) {
+                    closestDistSq = dSq;
+                    closestAttractor = attractor;
+                }
+            }
+            
+            const magneticRadius = closestAttractor.radius;
+            if (closestAttractor && closestDistSq < this.p.sq(magneticRadius * XP_SETTINGS.baseMagneticRadiusMultiplier)) {
+                this.isAttracted = true;
+                this.state = 'attracted';
+                const accel = this.p.constructor.Vector.sub(closestAttractor.pos, this.pos);
+                accel.normalize();
+                accel.mult(this.attractionForce * timeMultiplier);
+                this.vel.add(accel);
+                this.vel.limit(15);
+            } else {
+                this.isAttracted = false;
+                if (this.state === 'attracted') this.state = 'idle';
+            }
+        }
+
+        if (!this.isAttracted) {
+             this.vel.mult(0.95);
+        }
+        
+        this.pos.add(this.vel);
+    }
+    
+    draw() {
+        const p = this.p;
+        
+        if (this.state === 'collecting') {
+            const progress = 1 - (this.collectionTimer / this.maxCollectionTime);
+            const size = this.radius * 4 * (1 - progress);
+            const alpha = 255 * (1 - progress);
+            p.textAlign(p.CENTER, p.CENTER);
+            p.textSize(size);
+            p.fill(255, alpha);
+            p.text(this.icon, this.pos.x, this.pos.y);
+            return;
+        }
+
+        let baseColor;
+        switch(this.type) {
+            case 'enchanter1': baseColor = p.color(144, 238, 144); break; // LightGreen
+            case 'enchanter2': baseColor = p.color(135, 206, 250); break; // LightSkyBlue
+            case 'enchanter3': baseColor = p.color(216, 191, 216); break; // Thistle (light purple)
+            default: baseColor = p.color(255);
+        }
+
+        let alpha = 255;
+        if (this.cooldown > 0) {
+            alpha = p.map(this.cooldown, XP_SETTINGS.invulnerableTime, 0, 50, 200);
+        }
+        
+        p.push();
+        p.translate(this.pos.x, this.pos.y);
+        
+        // Glow
+        p.noStroke();
+        const shine = p.map(p.sin(p.frameCount * 0.1 + this.randomOffset), -1, 1, 0.4, 0.8);
+        baseColor.setAlpha(alpha * shine * 0.5);
+        p.fill(baseColor);
+        p.ellipse(0, 0, this.radius * 5);
+        
+        // Icon
+        p.textAlign(p.CENTER, p.CENTER);
+        p.textSize(this.radius * 2.5);
+        
+        // Shadow for the icon
+        p.drawingContext.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        p.drawingContext.shadowBlur = 5;
+        
+        p.fill(255, alpha); // White icon
+        p.text(this.icon, 0, 1); // small offset for better centering with shadow
+
+        // Reset shadow
+        p.drawingContext.shadowBlur = 0;
+
+        p.pop();
+    }
+}
+
 export class LeechHealVFX {
     constructor(p, x, y, radius) {
         this.p = p;
@@ -363,6 +488,51 @@ export class FlyingIcon {
 
     isFinished() {
         return this.age >= this.lifespan;
+    }
+}
+
+export class ChainVFX {
+    constructor(p, startPos, endPos) {
+        this.p = p;
+        this.startPos = startPos;
+        this.endPos = endPos;
+        this.lifespan = 20;
+        this.maxLifespan = 20;
+    }
+
+    update() {
+        this.lifespan--;
+    }
+
+    isFinished() {
+        return this.lifespan <= 0;
+    }
+
+    draw() {
+        const p = this.p;
+        const progress = this.lifespan / this.maxLifespan;
+        const alpha = 255 * progress;
+        const color = p.color(100, 200, 255, alpha);
+        
+        p.stroke(color);
+        p.strokeWeight(3 * progress);
+
+        const vec = p.constructor.Vector.sub(this.endPos, this.startPos);
+        const perp = vec.copy().rotate(p.HALF_PI).normalize();
+        const numSegments = 5;
+        const segmentLength = vec.mag() / numSegments;
+        const maxOffset = 10 * progress;
+
+        p.noFill();
+        p.beginShape();
+        p.vertex(this.startPos.x, this.startPos.y);
+        for (let i = 1; i < numSegments; i++) {
+            const posOnLine = p.constructor.Vector.add(this.startPos, vec.copy().normalize().mult(i * segmentLength));
+            const offset = perp.copy().mult(p.random(-maxOffset, maxOffset));
+            p.vertex(posOnLine.x + offset.x, posOnLine.y + offset.y);
+        }
+        p.vertex(this.endPos.x, this.endPos.y);
+        p.endShape();
     }
 }
 
