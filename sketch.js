@@ -2451,7 +2451,7 @@ export const sketch = (p, state, callbacks) => {
 
         const gameStateRef = { value: gameState };
         const ballsLeftRef = { value: ballsLeft };
-        const context = { p, board, bricks, splatBuffer, ballsInPlay, sharedBallStats, levelStats, floatingTexts, shockwaves, sounds, gameStateRef, ballsLeftRef, BRICK_STATS, gameController: p };
+        const context = { p, board, bricks, splatBuffer, ballsInPlay, sharedBallStats, levelStats, floatingTexts, shockwaves, particles, sounds, gameStateRef, ballsLeftRef, BRICK_STATS, gameController: p }; // Added particles
         processBrokenBricks(initialEvents.find(e => e.type === 'brick_hit'), context);
         gameState = gameStateRef.value;
         ballsLeft = ballsLeftRef.value;
@@ -2674,7 +2674,7 @@ export const sketch = (p, state, callbacks) => {
                             const context = {
                                 p, board, bricks, processEvents, processBrokenBricks, 
                                 ballsInPlay, sharedBallStats, levelStats, floatingTexts, 
-                                shockwaves, sounds, gameStateRef: {value: gameState}, ballsLeftRef: {value: ballsLeft}
+                                shockwaves, particles, sounds, gameStateRef: {value: gameState}, ballsLeftRef: {value: ballsLeft} // Added particles
                             };
                             handleBrickSpawnPowerup(effect, context);
                         }

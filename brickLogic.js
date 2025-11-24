@@ -1,4 +1,5 @@
 
+
 // brickLogic.js
 import { FlyingIcon, FloatingText } from './vfx.js';
 import * as dom from './dom.js';
@@ -7,7 +8,7 @@ import { sounds } from './sfx.js';
 import * as event from './eventManager.js';
 import { generateRandomEquipment } from './equipment.js';
 import { Ball } from './ball.js';
-import { createSplat } from './vfx.js';
+import { createSplat, createBrickHitVFX } from './vfx.js';
 import { XP_SETTINGS, BRICK_STATS } from './balancing.js';
 import { Shockwave } from './vfx.js';
 import { animateWoodParticles, animateFoodParticles } from './ui/domVfx.js';
@@ -337,6 +338,10 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
 
                     const brickPos = brick.getPixelPos(board);
                     createSplat(p, splatBuffer, brickPos.x + brick.size / 2, brickPos.y + brick.size / 2, brick.getColor(), board.gridUnitSize);
+                    // Enhanced destruction VFX
+                    const debris = createBrickHitVFX(p, brickPos.x + brick.size / 2, brickPos.y + brick.size / 2, brick.getColor());
+                    context.particles.push(...debris);
+
                     const centerVec = p.createVector(
                         brickPos.x + (brick.size * brick.widthInCells) / 2,
                         brickPos.y + (brick.size * brick.heightInCells) / 2
@@ -414,7 +419,7 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
                                         glow = true;
                                         break;
                                     default: color = p.color(255);
-                                }
+}
                                 
                                 p.addFloatingText(text, color, { size: 18, isBold: true, lifespan: 150, glow }, centerVec);
 

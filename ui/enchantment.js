@@ -1,3 +1,5 @@
+
+
 // ui/enchantment.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
@@ -9,6 +11,7 @@ let gameController = null;
 let selectedBallType = 'explosive';
 let ingredientSlots = [null, null, null];
 let enchantmentResult = null; // { success: bool, outcome: object|null }
+let isEnchanting = false;
 
 export const BALL_ENCHANTMENT_DISPLAY_CONFIG = {
     classic: [
@@ -70,6 +73,23 @@ export function initialize(controller, visuals) {
 }
 
 function handleEnchant() {
+    if (isEnchanting) return;
+    isEnchanting = true;
+    
+    const controlsContainer = document.querySelector('.enchant-controls');
+    if (controlsContainer) controlsContainer.classList.add('charging');
+    
+    sounds.enchantCharge(); // Start charging sound
+
+    // Wait for animation (1.5s)
+    setTimeout(() => {
+        isEnchanting = false;
+        if (controlsContainer) controlsContainer.classList.remove('charging');
+        executeEnchantLogic();
+    }, 1500);
+}
+
+function executeEnchantLogic() {
     const enchantmentData = state.ballEnchantments[selectedBallType];
     const currentLevel = enchantmentData.level;
     if (currentLevel >= ENCHANTMENT_REQUIREMENTS.length) return;
@@ -95,10 +115,10 @@ function handleEnchant() {
         enchantmentData.productionCostMultiplier *= costIncrease;
 
         enchantmentResult = { success: true, outcome: outcome };
-        sounds.upgrade();
+        sounds.enchantSuccess();
     } else {
         enchantmentResult = { success: false, outcome: null };
-        sounds.gameOver(); // Failure sound
+        sounds.enchantFail(); 
     }
     
     // Consume ingredients regardless of outcome
@@ -141,6 +161,7 @@ export function renderEnchantmentUI() {
         card.appendChild(text);
 
         card.onclick = () => {
+            if (isEnchanting) return;
             selectedBallType = ballType;
             ingredientSlots = [null, null, null];
             enchantmentResult = null;
@@ -234,6 +255,7 @@ export function renderEnchantmentUI() {
                 slot.innerHTML = ENCHANTER_STATS[itemId].icon;
             }
             slot.onclick = () => {
+                if (isEnchanting) return;
                 if (itemId) {
                     ingredientSlots[index] = null;
                     renderEnchantmentUI();
@@ -254,6 +276,7 @@ export function renderEnchantmentUI() {
                 card.innerHTML = `${itemData.icon}<span class="item-count">${count}</span>`;
                 card.title = `${itemData.name} (${itemData.ep} EP)`;
                 card.onclick = () => {
+                    if (isEnchanting) return;
                     const emptySlotIndex = ingredientSlots.findIndex(slot => slot === null);
                     if (emptySlotIndex !== -1) {
                         ingredientSlots[emptySlotIndex] = itemId;
@@ -326,6 +349,6 @@ export function renderEnchantmentUI() {
         setTimeout(() => {
             enchantmentResult = null;
             renderEnchantmentUI();
-        }, 2000);
+        }, 2500);
     }
 }

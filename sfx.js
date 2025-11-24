@@ -193,4 +193,54 @@ export const sounds = {
     spikeRetaliate: () => { playSound({ freq: 600, duration: 0.1, type: 'square', volume: 0.4, decay: 0.08, freqEnd: 300 }); playSound({ type: 'noise', duration: 0.05, volume: 0.2, decay: 0.04 }); },
     sniperFire: () => { playSound({ freq: 120, duration: 0.4, type: 'sawtooth', volume: 0.4, decay: 0.35, freqEnd: 60 }); playSound({ type: 'noise', duration: 0.2, volume: 0.2, decay: 0.18 }); },
     laserFire: () => playSound({ freq: 1500, duration: 0.2, type: 'sawtooth', volume: 0.3, decay: 0.18, freqEnd: 500 }),
+
+    // --- Enchantment Sounds ---
+    enchantCharge: () => {
+        // Create a long, rising sound
+        const ctx = audioCtx;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 1.5); // Rise over 1.5s
+        
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 1.5);
+        
+        osc.connect(gain);
+        gain.connect(masterGain);
+        
+        osc.start();
+        osc.stop(ctx.currentTime + 1.5);
+        return osc; // Return for potential early cancellation
+    },
+    
+    enchantSuccess: () => {
+        // Reusing Level Up Sound sequence as requested
+        playSound({ freq: 261.63, duration: 0.8, type: 'triangle', volume: 0.25, decay: 0.5 }); // C4
+        playSound({ freq: 329.63, duration: 0.8, type: 'triangle', volume: 0.2, decay: 0.5 }); // E4
+        playSound({ freq: 392.00, duration: 0.8, type: 'triangle', volume: 0.2, decay: 0.5 }); // G4
+
+        playSound({ freq: 523.25, duration: 0.25, type: 'sine', volume: 0.35, decay: 0.2, delay: 0.05 }); // C5
+        playSound({ freq: 587.33, duration: 0.25, type: 'sine', volume: 0.35, decay: 0.2, delay: 0.30 }); // D5
+        playSound({ freq: 659.26, duration: 0.3, type: 'sine', volume: 0.35, decay: 0.25, delay: 0.55 }); // E5
+        playSound({ freq: 783.99, duration: 0.4, type: 'sine', volume: 0.3, decay: 0.3, delay: 0.85 }); // G5
+        playSound({ freq: 698.46, duration: 0.45, type: 'sine', volume: 0.3, decay: 0.35, delay: 1.2 }); // F5
+        playSound({ freq: 1046.50, duration: 0.6, type: 'sine', volume: 0.25, decay: 0.45, delay: 1.55 }); // C6
+
+        playSound({ freq: 1046.50, duration: 0.25, type: 'triangle', volume: 0.15, decay: 0.2, delay: 1.6 }); // C6
+        playSound({ freq: 1318.51, duration: 0.2, type: 'triangle', volume: 0.12, decay: 0.18, delay: 1.65 }); // E6
+
+        playSound({ freq: 130.81, duration: 0.8, type: 'sine', volume: 0.2, decay: 0.6, delay: 0.05 }); // C3
+    },
+    
+    enchantFail: () => {
+        playSound({ freq: 150, duration: 0.5, type: 'sawtooth', volume: 0.4, decay: 0.4, freqEnd: 100 }); 
+        playSound({ type: 'noise', duration: 0.4, volume: 0.2, decay: 0.3 });
+    },
+    
+    uiHover: () => {
+        playSound({ freq: 400, duration: 0.05, type: 'sine', volume: 0.05, decay: 0.04 });
+    }
 };

@@ -1,3 +1,5 @@
+
+
 // vfx.js
 import { XP_SETTINGS, ENCHANTER_STATS } from './balancing.js';
 
@@ -12,17 +14,28 @@ export class Particle {
         if(options.target) { 
             this.target = options.target.copy(); 
             this.accel = p.constructor.Vector.sub(this.target, this.pos).normalize().mult(0.5); 
-        } 
+        }
+        // Debris logic
+        this.isDebris = options.isDebris || false;
+        if (this.isDebris) {
+            this.angle = p.random(p.TWO_PI);
+            this.angularVel = p.random(-0.2, 0.2);
+            this.gravity = p.createVector(0, 0.2); // Subtle gravity
+        }
     } 
     update() { 
         if(this.target) { 
             this.vel.add(this.accel); 
             this.vel.limit(8); 
+        } else if (this.isDebris) {
+            this.vel.add(this.gravity);
+            this.vel.mult(0.95); // Drag
+            this.angle += this.angularVel;
         } else { 
             this.vel.mult(0.95); 
         } 
         this.pos.add(this.vel); 
-        this.lifespan -= 6; 
+        this.lifespan -= (this.isDebris ? 4 : 6); 
         if(this.target && this.p.dist(this.pos.x, this.pos.y, this.target.x, this.target.y) < 10) { 
             this.lifespan = 0;
         } 
@@ -30,7 +43,17 @@ export class Particle {
     draw() { 
         this.p.noStroke(); 
         this.p.fill(this.color.levels[0], this.color.levels[1], this.color.levels[2], this.lifespan); 
-        this.p.ellipse(this.pos.x, this.pos.y, this.size, this.size); 
+        
+        if (this.isDebris) {
+            this.p.push();
+            this.p.translate(this.pos.x, this.pos.y);
+            this.p.rotate(this.angle);
+            this.p.rectMode(this.p.CENTER);
+            this.p.rect(0, 0, this.size, this.size);
+            this.p.pop();
+        } else {
+            this.p.ellipse(this.pos.x, this.pos.y, this.size, this.size); 
+        }
     } 
     isFinished() { 
         return this.lifespan < 0; 
@@ -539,23 +562,50 @@ export class ChainVFX {
 
 export function createSplat(p, splatBuffer, x, y, brickColor, gridUnitSize) { 
     if (!splatBuffer) return; 
+    
     const darkerColor = p.lerpColor(brickColor, p.color(0), 0.3); 
     splatBuffer.noStroke(); 
-    splatBuffer.fill(darkerColor.levels[0], darkerColor.levels[1], darkerColor.levels[2], 20); 
-    const splatSize = gridUnitSize * 1; 
-    for (let i = 0; i < 2; i++) { 
+    splatBuffer.fill(darkerColor.levels[0], darkerColor.levels[1], darkerColor.levels[2], 8); 
+    
+    const splatSize = gridUnitSize * 1.2; 
+    const numSplats = Math.floor(p.random(3, 6));
+
+    for (let i = 0; i < numSplats; i++) { 
         const offsetX = p.random(-splatSize / 2, splatSize / 2); 
         const offsetY = p.random(-splatSize / 2, splatSize / 2); 
-        const d = p.random(splatSize * 0.15, splatSize * 0.75); 
-        splatBuffer.ellipse(x + offsetX, y + offsetY, d, d); 
+        const d = p.random(splatSize * 0.2, splatSize * 0.6); 
+        
+        // Create irregular shapes instead of perfect circles
+        splatBuffer.beginShape();
+        for (let j = 0; j < 6; j++) {
+            const angle = (p.TWO_PI / 6) * j;
+            const r = d * p.random(0.5, 1.0);
+            const vX = (x + offsetX) + p.cos(angle) * r;
+            const vY = (y + offsetY) + p.sin(angle) * r;
+            splatBuffer.vertex(vX, vY);
+        }
+        splatBuffer.endShape(p.CLOSE);
     } 
 }
 
 export function createBrickHitVFX(p, x, y, c) { 
     const vfx = [];
-    for (let i = 0; i < 15; i++) {
-        vfx.push(new Particle(p, x, y, c, 3, { size: p.random(2, 5) })); 
+    const numParticles = 8;
+    
+    // Dust/Spark particles
+    for (let i = 0; i < numParticles; i++) {
+        vfx.push(new Particle(p, x, y, c, 4, { size: p.random(2, 5) })); 
     }
+    
+    // Debris chunks (larger, physics-based)
+    for (let i = 0; i < 5; i++) {
+        vfx.push(new Particle(p, x, y, c, 6, { 
+            size: p.random(4, 8),
+            isDebris: true,
+            lifespan: 200
+        }));
+    }
+    
     return vfx;
 }
 

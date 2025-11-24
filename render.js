@@ -1,4 +1,5 @@
 
+
 // render.js - All p5.js drawing logic
 
 import { AIMING_SETTINGS, BRICK_STATS } from './balancing.js';
@@ -270,12 +271,19 @@ export function renderGame(p, context, timers = {}) {
     });
 
 
-    // RENDER ORDER
+    // RENDER ORDER - BRICKS
     const drawnBricks = new Set();
     for (let c = 0; c < board.cols; c++) {
         for (let r = 0; r < board.rows; r++) {
             const brick = bricks[c][r];
             if (brick && !drawnBricks.has(brick)) {
+                // Logic for Intro Animation
+                if (brick.spawnDelay > 0) {
+                    brick.spawnDelay--;
+                } else if (brick.spawnTimer < 20) {
+                    brick.spawnTimer++;
+                }
+
                 let timerState = null;
                 if (brick.type === 'Farmland' && timers.farmland) {
                     timerState = timers.farmland;

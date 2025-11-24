@@ -1,10 +1,20 @@
 
+
 // ui/modals.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
 import { UNLOCK_DESCRIPTIONS } from '../text.js';
 import { sounds } from '../sfx.js';
 import { MILESTONE_LEVELS } from '../firstTimeLevels.js';
+
+function closeModalWithAnimation(modalElement) {
+    if (!modalElement) return;
+    modalElement.classList.add('closing');
+    setTimeout(() => {
+        modalElement.classList.add('hidden');
+        modalElement.classList.remove('closing');
+    }, 200); // Matches CSS transition duration
+}
 
 export function showLevelUpModal(level) {
     if (!state.p5Instance) return;
@@ -66,7 +76,7 @@ export function showLevelCompleteModal(stats, gameController, level) {
         }
         button.onclick = async () => {
              sounds.buttonClick();
-            dom.levelCompleteModal.classList.add('hidden');
+            closeModalWithAnimation(dom.levelCompleteModal);
             await gameController.nextLevel();
         
             if (state.p5Instance) {
@@ -131,7 +141,7 @@ export function showLevelCompleteModal(stats, gameController, level) {
         button.onclick = async () => {
             sounds.buttonClick();
             state.nextRoomType = choice.type;
-            dom.levelCompleteModal.classList.add('hidden');
+            closeModalWithAnimation(dom.levelCompleteModal);
     
             const levelStats = gameController.getLevelStats();
             const runStats = gameController.getRunStats();

@@ -1,4 +1,5 @@
 
+
 // levelgen.js
 
 import { Brick } from './brick.js';
@@ -737,14 +738,24 @@ export function generateLevel(p, settings, level, board) {
         }
     }
     
-    // --- Step 11: Finalization ---
+    // --- Step 11: Finalization & Intro Staggering ---
     let goalBrickCount = 0;
     const allBricks = new Set();
+    const centerC = cols / 2;
+    const centerR = rows / 2;
+
     for (let c = 0; c < cols; c++) {
         for (let r = 0; r < rows; r++) {
             const b = brickMatrix[c][r];
             if (b) {
                 if (!allBricks.has(b)) {
+                    // Calculate spawn delay based on distance from center
+                    // Convert c,r to 0..12 range from -6..6
+                    const distFromCenter = Math.abs((c) - centerC) + Math.abs((r) - centerR);
+                    // Base delay + staggered delay. 
+                    // Frames. e.g., center appears first, edges later.
+                    b.spawnDelay = distFromCenter * 3; 
+                    
                     event.dispatch('BrickSpawned', { brick: b, source: 'levelgen' });
                     allBricks.add(b);
                 }

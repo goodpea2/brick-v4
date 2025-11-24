@@ -51,6 +51,10 @@ export class Brick {
         this.flashTime = 0;
         this.isShieldedByAura = false;
         
+        // Spawn Animation Properties
+        this.spawnTimer = 0; 
+        this.spawnDelay = 0;
+        
         if (state.gameMode === 'homeBase' && BRICK_STATS.canCarryFood[this.type]) {
             this.maxFood = 10;
             this.foodIndicatorPositions = [];
@@ -293,8 +297,25 @@ export class Brick {
     draw(board, timerState = null, posOverride = null, ballsInPlay = []) {
         const p = this.p;
         const pos = posOverride ? posOverride : this.getPixelPos(board);
+        
+        // --- SPAWN ANIMATION SCALING ---
+        let scale = 1.0;
+        if (this.spawnTimer < 20) { // Animation lasts 20 frames (approx 0.33s)
+            const t = this.spawnTimer / 20;
+            // Elastic ease-out
+            scale = p.constrain(t === 0 ? 0 : t === 1 ? 1 : p.pow(2, -10 * t) * p.sin((t * 10 - 0.75) * (p.TWO_PI / 3)) + 1, 0, 1);
+        }
+        
+        p.push();
         const totalWidth = this.size * this.widthInCells;
         const totalHeight = this.size * this.heightInCells;
+        const centerX = pos.x + totalWidth / 2;
+        const centerY = pos.y + totalHeight / 2;
+        
+        p.translate(centerX, centerY);
+        p.scale(scale);
+        p.translate(-centerX, -centerY);
+        
         const layeredTypes = ['normal', 'extraBall', 'goal', 'wool', 'shieldGen', 'FoodStorage', 'WoodStorage', 'Farmland', 'Sawmill', 'LogBrick', 'BallProducer', 'EmptyCage'];
         
         // Attempt to draw custom leveled visual first
@@ -566,13 +587,31 @@ export class Brick {
             const cornerRadiusArgs = (this.type === 'shieldGen') ? [20, 20, 20, 20] : [ (this.type === 'ballCage' || this.type === 'equipment' || this.type === 'explosive' || this.type === 'horizontalStripe' || this.type === 'verticalStripe') ? 2 : 4 ];
             p.rect(pos.x + 1, pos.y + 1, totalWidth - 2, totalHeight - 2, ...cornerRadiusArgs);
         }
+        
+        p.pop(); // Restore transformation matrix
     }
 
     drawOverlays(board, ballsInPlay = []) {
          const p = this.p;
          const pos = this.getPixelPos(board);
+         
+         // --- SPAWN ANIMATION SCALING FOR OVERLAYS ---
+         // We must manually calculate the scale center to match the main draw() method
+         // because drawOverlays is called in a separate pass
          const totalWidth = this.size * this.widthInCells;
          const totalHeight = this.size * this.heightInCells;
+         const centerX = pos.x + totalWidth / 2;
+         const centerY = pos.y + totalHeight / 2;
+         
+         p.push();
+         if (this.spawnTimer < 20) {
+             const t = this.spawnTimer / 20;
+             const scale = p.constrain(t === 0 ? 0 : t === 1 ? 1 : p.pow(2, -10 * t) * p.sin((t * 10 - 0.75) * (p.TWO_PI / 3)) + 1, 0, 1);
+             p.translate(centerX, centerY);
+             p.scale(scale);
+             p.translate(-centerX, -centerY);
+         }
+
          const cX = pos.x + totalWidth / 2;
          const cY = pos.y + totalHeight / 2;
 
@@ -768,5 +807,7 @@ export class Brick {
                 p.text(hpText, cX, cY);
             }
         }
+        
+        p.pop(); // Restore push from start of drawOverlays
     }
 }
