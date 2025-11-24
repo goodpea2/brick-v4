@@ -269,6 +269,14 @@ export function initializeInput(gameController, runCode) {
                      state.playerMaterials.wire += (runStats.totalWireCollected || 0);
                      state.playerMaterials.fuel += (runStats.totalFuelCollected || 0);
                  }
+            } else if (state.gameMode === 'adventureRun') {
+                 const runStats = gameController.getRunStats();
+                 if (runStats) {
+                     const food = runStats.totalFoodCollected || 0;
+                     const wood = runStats.totalWoodCollected || 0;
+                     state.playerFood = Math.min(state.maxFood, state.playerFood + food);
+                     state.playerWood = Math.min(state.maxWood, state.playerWood + wood);
+                 }
             }
             
             // Use explicit numeric comparison if needed, ensuring imported value is valid

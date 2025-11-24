@@ -459,7 +459,7 @@ export function updateBrickInfoPanel(brick, gameController) {
                 xpBarContainer.style.marginBottom = '10px';
                 xpBarContainer.innerHTML = `
                     <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#aaa; margin-bottom:2px;">
-                        <span>Goal XP</span>
+                        <span>🔸Goal XP</span>
                         <span>${state.goalBrickXp} / ${xpRequired}</span>
                     </div>
                     <div style="width:100%; height:6px; background:#333; border-radius:3px; overflow:hidden;">

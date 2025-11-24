@@ -423,29 +423,36 @@ export const sketch = (p, state, callbacks) => {
             return;
         }
         
+        // --- Calculate Home Base Time Multiplier ---
+        let homeBaseTimeMultiplier = 1;
+        if (state.homeBaseTimeMultiplier > 1 && Date.now() < state.homeBaseTimeMultiplierEnd) {
+            homeBaseTimeMultiplier = state.homeBaseTimeMultiplier;
+            const speedBtn = dom.cheatSpeedUpBtn;
+            if (speedBtn && !speedBtn.classList.contains('hidden')) {
+                 const secondsLeft = ((state.homeBaseTimeMultiplierEnd - Date.now()) / 1000).toFixed(1);
+                 speedBtn.textContent = `x${homeBaseTimeMultiplier} Speed (${secondsLeft}s)`;
+            }
+        } else if (state.homeBaseTimeMultiplier > 1) {
+            state.homeBaseTimeMultiplier = 1;
+            state.homeBaseTimeMultiplierEnd = 0;
+            const speedBtn = dom.cheatSpeedUpBtn;
+            if(speedBtn) {
+                speedBtn.textContent = 'x20 Speed (3s)';
+                speedBtn.disabled = false;
+            }
+        }
+
+        // --- Always Update Home Base Timers ---
+        if (state.mainLevel >= UNLOCK_LEVELS.HOME_BASE && homeBaseBricks && homeBaseBricks.length > 0) {
+            updateHomeBaseTimers(homeBaseTimeMultiplier);
+        }
+        
         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun' || state.gameMode === 'invasionDefend') {
             const timeMultiplier = state.isSpedUp ? 2 : 1;
             for (let i = 0; i < timeMultiplier; i++) {
                 gameLoop(i === timeMultiplier - 1);
             }
         } else { // homeBase
-            let timeMultiplier = 1;
-            const speedBtn = dom.cheatSpeedUpBtn;
-
-            if (state.homeBaseTimeMultiplier > 1 && Date.now() < state.homeBaseTimeMultiplierEnd) {
-                timeMultiplier = state.homeBaseTimeMultiplier;
-                const secondsLeft = ((state.homeBaseTimeMultiplierEnd - Date.now()) / 1000).toFixed(1);
-                if (speedBtn) speedBtn.textContent = `x${timeMultiplier} Speed (${secondsLeft}s)`;
-            } else if (state.homeBaseTimeMultiplier > 1) { // Expired
-                state.homeBaseTimeMultiplier = 1;
-                state.homeBaseTimeMultiplierEnd = 0;
-                if(speedBtn) {
-                    speedBtn.textContent = 'x20 Speed (3s)';
-                    speedBtn.disabled = false;
-                }
-            }
-
-            updateHomeBaseTimers(timeMultiplier);
             updateVFX();
              // Simple render loop for home base
             const producerTimers = {};
@@ -2385,14 +2392,14 @@ export const sketch = (p, state, callbacks) => {
                     if (evt.foodDropped > 0) {
                         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
                             levelStats.foodCollected += evt.foodDropped;
-                            gameController.getRunStats().totalFoodCollected += evt.foodDropped;
+                            runStats.totalFoodCollected += evt.foodDropped;
                         } else {
                             state.playerFood = Math.min(state.maxFood, state.playerFood + evt.foodDropped);
                         }
                         sounds.foodCollect();
                         floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
                         const canvasRect = p.canvas.getBoundingClientRect();
-                        animateFoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, evt.foodDropped);
+                        ui.animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.foodDropped);
                     }
 
                     particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
@@ -2500,6 +2507,9 @@ export const sketch = (p, state, callbacks) => {
         // ... (existing game logic for click)
     };
     
+    // Local variable for drag state
+    let canInitiateDrag = false;
+
     p.mousePressed = (evt) => {
         if (p.isModalOpen || evt.target !== p.canvas) return;
 
@@ -2587,41 +2597,53 @@ export const sketch = (p, state, callbacks) => {
 
             if (draggedBrick) return;
 
-            if (selectedBrick && clickedBrick === selectedBrick) {
-                draggedBrick = selectedBrick;
-                draggedBrickOriginalPos = { c: selectedBrick.c, r: selectedBrick.r };
-                const rootC = draggedBrick.c + 6;
-                const rootR = draggedBrick.r + 6;
-                for (let i = 0; i < draggedBrick.widthInCells; i++) {
-                    for (let j = 0; j < draggedBrick.heightInCells; j++) {
-                        if (bricksToInteract[rootC + i] && bricksToInteract[rootC + i][rootR + j] === draggedBrick) {
-                            bricksToInteract[rootC + i][rootR + j] = null;
-                        }
-                    }
-                }
-                return;
-            }
-
             if (clickedBrick) {
                 if (isHomeBase) {
                     if (clickedBrick.food > 0) {
                         harvestFood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
                         homeBaseHarvestedThisDrag.add(clickedBrick);
-                        return;
+                        // Don't select if harvesting
+                        return; 
                     }
                     if (clickedBrick.type === 'LogBrick') {
                         harvestWood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
                         homeBaseHarvestedThisDrag.add(clickedBrick);
+                        // Don't select if harvesting
                         return;
                     }
                     if (harvestResourceFromProducer(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p })) {
                         homeBaseHarvestedThisDrag.add(clickedBrick);
+                        // Don't select if harvesting
                         return;
                     }
                 }
-                selectedBrick = clickedBrick;
+
+                // Selection Logic:
+                // If clicking a brick that IS already selected -> initiate drag logic (prepare)
+                if (selectedBrick && clickedBrick === selectedBrick) {
+                    canInitiateDrag = true;
+                    
+                    // We can start dragging immediately on this press if we want snappy response
+                    draggedBrick = selectedBrick;
+                    draggedBrickOriginalPos = { c: selectedBrick.c, r: selectedBrick.r };
+                    const rootC = draggedBrick.c + 6;
+                    const rootR = draggedBrick.r + 6;
+                    for (let i = 0; i < draggedBrick.widthInCells; i++) {
+                        for (let j = 0; j < draggedBrick.heightInCells; j++) {
+                            if (bricksToInteract[rootC + i] && bricksToInteract[rootC + i][rootR + j] === draggedBrick) {
+                                bricksToInteract[rootC + i][rootR + j] = null;
+                            }
+                        }
+                    }
+                    return;
+                } else {
+                    // New selection
+                    selectedBrick = clickedBrick;
+                    canInitiateDrag = false; // Cannot drag immediately on selection click
+                }
             } else {
                 selectedBrick = null;
+                canInitiateDrag = false;
             }
             event.dispatch('BrickSelected', { brick: selectedBrick });
             return;
@@ -2747,28 +2769,19 @@ export const sketch = (p, state, callbacks) => {
         
         if ((state.gameMode === 'homeBase' && !state.isEditorMode)) {
             const isHomeBase = state.gameMode === 'homeBase';
-            const bricksToInteract = isHomeBase ? homeBaseBricks : bricks;
+            // Remove the logic that selects new bricks while dragging.
+            // Only perform harvesting actions.
 
             if (isHomeBase) {
-                homeBaseHarvestedThisDrag.clear();
+                // We clear harvested set on mouseRelease, so dragging accumulates harvested set.
+                // Note: homeBaseHarvestedThisDrag.clear() is in mousePressed and mouseReleased to be safe.
             }
 
             if (draggedBrick) return;
 
-            if (selectedBrick && clickedBrick === selectedBrick) {
-                draggedBrick = selectedBrick;
-                draggedBrickOriginalPos = { c: selectedBrick.c, r: selectedBrick.r };
-                const rootC = draggedBrick.c + 6;
-                const rootR = draggedBrick.r + 6;
-                for (let i = 0; i < draggedBrick.widthInCells; i++) {
-                    for (let j = 0; j < draggedBrick.heightInCells; j++) {
-                        if (bricksToInteract[rootC + i] && bricksToInteract[rootC + i][rootR + j] === draggedBrick) {
-                            bricksToInteract[rootC + i][rootR + j] = null;
-                        }
-                    }
-                }
-                return;
-            }
+            // Note: We removed the logic that automatically initiates a drag here if clickedBrick == selectedBrick.
+            // Drag initiation must happen in mousePressed now to ensure "click first" requirement.
+            // If drag started in mousePressed, draggedBrick is already set and we returned above.
 
             if (clickedBrick) {
                 if (isHomeBase) {
@@ -2787,11 +2800,8 @@ export const sketch = (p, state, callbacks) => {
                         return;
                     }
                 }
-                selectedBrick = clickedBrick;
-            } else {
-                selectedBrick = null;
+                // Crucial Change: DO NOT select new bricks while dragging/swiping.
             }
-            event.dispatch('BrickSelected', { brick: selectedBrick });
             return;
         }
         
@@ -2819,7 +2829,7 @@ export const sketch = (p, state, callbacks) => {
                 for (let j = 0; j < draggedBrick.heightInCells; j++) {
                     const targetC = gridC + i;
                     const targetR = gridR + j;
-                    if (targetC < 0 || targetC >= board.cols || targetR < 0 || targetR >= board.rows || bricksToModify[targetC][targetR]) {
+                    if (targetC < 0 || targetC >= board.cols || targetR < 0 || targetR >= board.rows || bricks[targetC][targetR]) {
                         isValidDrop = false;
                         break;
                     }

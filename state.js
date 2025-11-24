@@ -34,9 +34,9 @@ export const state = {
     playerFood: 1000,
     playerWood: 1000,
     playerMaterials: {
-        metal: 100,
-        wire: 100,
-        fuel: 100,
+        metal: 0,
+        wire: 0,
+        fuel: 0,
     },
     playerEnchanters: {
         enchanter1: 0,
