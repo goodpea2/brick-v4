@@ -1,5 +1,4 @@
 
-
 // render.js - All p5.js drawing logic
 
 import { AIMING_SETTINGS, BRICK_STATS } from './balancing.js';
@@ -125,6 +124,7 @@ function drawInGameUI(p, ballsInPlay, sharedBallStats) {
         }
     }
 
+    // --- Draw HP bar (bottom-up, column-wrapped) ---
     // --- Draw HP bar (bottom-up, column-wrapped) ---
     for (let i = 0; i < totalSegments; i++) {
         const col = Math.floor(i / segsPerCol);
@@ -665,6 +665,15 @@ export function renderGame(p, context, timers = {}) {
     if (flyingIcons) flyingIcons.forEach(fi => fi.draw());
     [particles, shockwaves, floatingTexts, powerupVFXs, stripeFlashes, leechHealVFXs, chainVFXs].forEach(vfxArray => vfxArray.forEach(v => v.draw()));
     
+    // TouchFx for Invasion Mode
+    if (state.gameMode === 'invasionDefend' && p.mouseIsPressed) {
+        const touchRadius = board.gridUnitSize * 0.3;
+        p.noFill();
+        p.stroke(255, 100);
+        p.strokeWeight(2);
+        p.ellipse(p.mouseX, p.mouseY, touchRadius * 2);
+    }
+
     drawGoldenTurnAnnouncement(p, board, gameState);
     drawLiveCombo(p, combo);
     drawInGameUI(p, ballsInPlay, sharedBallStats);

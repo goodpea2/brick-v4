@@ -12,7 +12,8 @@ import * as event from '../eventManager.js';
 import { updateContextPanel } from './homeBaseContext.js';
 import { GAME_MODE_TEXT } from '../text.js';
 import { getLevelSettings, populateSettingsModal, getInvasionSettings } from './settings.js';
-import { BRICK_LEVELING_DATA } from '../brickLeveling.js';
+import { BRICK_LEVELING_DATA, OVERLAY_LEVELING_DATA } from '../brickLeveling.js';
+import { addGoalXp } from '../brickLogic.js';
 
 export function initializeInput(gameController, runCode) {
     let adventureStartLevel = 1;
@@ -66,22 +67,12 @@ export function initializeInput(gameController, runCode) {
 
     dom.prevLevelBtn.addEventListener('click', async () => { 
         sounds.buttonClick(); 
-        if (state.gameMode === 'invasionDefend') {
-            if (state.invasionWave > 1) {
-                state.invasionWave -= 2; // -1 to go back, -1 to counteract the ++ in startNextWave
-                await gameController.startNextWave();
-            }
-        } else {
-            await gameController.prevLevel(); 
-        }
+        // Invasion prev logic handled in ui/visibility or by hiding this button
+        await gameController.prevLevel(); 
     });
     dom.nextLevelBtn.addEventListener('click', async () => { 
         sounds.buttonClick(); 
-        if (state.gameMode === 'invasionDefend') {
-            await gameController.startNextWave();
-        } else {
-            await gameController.nextLevel(); 
-        }
+        await gameController.nextLevel(); 
     });
 
     dom.clearBtn.addEventListener('click', async () => { 
@@ -351,6 +342,7 @@ export function initializeInput(gameController, runCode) {
         }
         if (e.target === dom.gameOverModal) { dom.gameOverContinueButton.click(); }
         if (e.target === dom.homeBaseShopModal) { sounds.popupClose(); if(state.p5Instance) state.p5Instance.isModalOpen = false; dom.homeBaseShopModal.classList.add('hidden'); }
+        if (e.target === dom.saveGameModal) { sounds.popupClose(); if(state.p5Instance) state.p5Instance.isModalOpen = false; dom.saveGameModal.classList.add('hidden'); }
     });
     
     // --- New Modal Listeners ---
@@ -574,6 +566,81 @@ export function initializeInput(gameController, runCode) {
             sounds.levelUp();
         }
     });
+    
+    dom.cheatLevelUpAllBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        if (!gameController) return;
+        
+        const homeBaseBricks = gameController.getHomeBaseBricks();
+        const board = gameController.getBoard();
+        const processed = new Set();
+
+        // Upgrade all bricks
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = homeBaseBricks[c][r];
+                if (brick && !processed.has(brick)) {
+                    processed.add(brick);
+                    
+                    // Special handling for Goal Bricks XP leveling
+                    if (brick.type === 'goal') {
+                        const levelData = BRICK_LEVELING_DATA.goal[state.goalBrickLevel - 1];
+                        if (levelData) {
+                            const needed = levelData.maxXp - state.goalBrickXp;
+                            if (needed > 0) {
+                                addGoalXp(needed, state.p5Instance, gameController);
+                            }
+                        }
+                    } else {
+                        const nextLevelData = BRICK_LEVELING_DATA[brick.type]?.[brick.level];
+                        if (nextLevelData) {
+                            brick.level++;
+                            Object.assign(brick, nextLevelData.stats);
+                            if (brick.type === 'BallProducer') {
+                                brick.production.maxQueue = nextLevelData.stats.maxQueue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        gameController.recalculateMaxResources();
+
+        // Upgrade all overlays
+        state.overlayInventory.forEach(overlay => {
+            const nextLevelData = OVERLAY_LEVELING_DATA[overlay.type]?.[overlay.level];
+            if (nextLevelData) {
+                overlay.level++;
+                Object.assign(overlay, nextLevelData.stats);
+            }
+        });
+
+        // Sync overlay stats to bricks
+        const processedForSync = new Set();
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const brick = homeBaseBricks[c][r];
+                if (brick && !processedForSync.has(brick) && brick.overlayId) {
+                    processedForSync.add(brick);
+                    const overlay = state.overlayInventory.find(o => o.id === brick.overlayId);
+                    if (overlay) {
+                        if (overlay.type === 'spike') brick.retaliateDamage = overlay.retaliateDamage;
+                    }
+                }
+            }
+        }
+
+        if(gameController.addFloatingText) {
+             gameController.addFloatingText("Base Upgraded +1!", state.p5Instance.color(0, 255, 255), { isBold: true, size: 24 });
+        }
+        
+        // Refresh UI if open
+        const selectedBrick = gameController.getSelectedBrick();
+        if (selectedBrick && !dom.brickInfoPanel.classList.contains('hidden')) {
+             ui.updateBrickInfoPanel(selectedBrick, gameController);
+        }
+    });
 
     dom.cheatGiantBallBtn.addEventListener('click', () => {
         sounds.buttonClick();
@@ -698,9 +765,22 @@ export function initializeInput(gameController, runCode) {
         dom.cheatSpeedUpBtn.disabled = true;
     });
 
-    dom.startNextWaveBtn.addEventListener('click', async () => {
+    // NEW BUTTONS
+    dom.invasionNextWaveBtn.addEventListener('click', async () => {
         sounds.buttonClick();
         await gameController.startNextWave();
+    });
+
+    dom.invasionEndBtn.addEventListener('click', () => {
+        sounds.buttonClick();
+        gameController.forceGameOver();
+    });
+    
+    dom.quickLoadBtn.addEventListener('click', () => {
+        sounds.popupOpen();
+        dom.saveGameTextarea.value = ''; // Start empty for loading
+        dom.saveGameModal.classList.remove('hidden');
+        if (state.p5Instance) state.p5Instance.isModalOpen = true;
     });
 
 

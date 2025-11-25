@@ -8,12 +8,41 @@ export function updateUIVisibilityForMode(mode) {
     const isHomeBase = mode === 'homeBase';
     document.body.classList.toggle('homebase-mode', isHomeBase);
     const isRun = mode === 'adventureRun' || mode === 'trialRun' || mode === 'invasionDefend';
+    const isAdventure = mode === 'adventureRun';
     
     const toolbar = document.querySelector('.toolbar');
     toolbar.classList.remove('hidden'); // Always show toolbar container
-    for (const child of toolbar.children) {
-        // Hide all toolbar buttons in home base
-        child.classList.toggle('hidden', isHomeBase);
+    
+    // Hide Gems before Level 5
+    dom.gemBankEl.classList.toggle('hidden', state.mainLevel < UNLOCK_LEVELS.GEMS_SKILLTREE);
+
+    // Handle toolbar buttons based on mode
+    if (isHomeBase) {
+        // Hide most toolbar buttons
+        for (const child of toolbar.children) {
+            child.classList.add('hidden');
+        }
+    } else if (mode === 'invasionDefend') {
+        dom.levelSettingsButton.textContent = 'Invasion Settings';
+        dom.levelSettingsButton.classList.remove('hidden');
+        dom.prevLevelBtn.classList.add('hidden');
+        dom.nextLevelBtn.classList.add('hidden');
+        dom.clearBtn.classList.add('hidden');
+        dom.invasionNextWaveBtn.classList.add('hidden'); // Initially hidden, toggled by game logic
+        dom.invasionEndBtn.classList.remove('hidden');
+        dom.pauseResumeBtn.classList.remove('hidden');
+    } else {
+        // Adventure & Trial Run
+        dom.levelSettingsButton.textContent = 'Level Settings';
+        dom.levelSettingsButton.classList.remove('hidden');
+        dom.prevLevelBtn.textContent = 'Prev Level';
+        dom.prevLevelBtn.classList.remove('hidden');
+        dom.nextLevelBtn.textContent = 'Next Level';
+        dom.nextLevelBtn.classList.remove('hidden');
+        dom.clearBtn.classList.remove('hidden');
+        dom.invasionNextWaveBtn.classList.add('hidden');
+        dom.invasionEndBtn.classList.add('hidden');
+        dom.pauseResumeBtn.classList.remove('hidden');
     }
     
     dom.ballSelector.classList.add('hidden'); // Always hide, let updateBallSelectorUI handle it
@@ -33,27 +62,13 @@ export function updateUIVisibilityForMode(mode) {
     if (mode === 'homeBase') {
         dom.modeToggleBtn.textContent = 'Play';
     } else if (mode === 'invasionDefend') {
-        dom.modeToggleBtn.textContent = 'End Invasion';
+        dom.modeToggleBtn.classList.add('hidden'); // Replaced by toolbar button
     } else { // adventureRun, trialRun
         if (mode === 'adventureRun' && state.mainLevel < UNLOCK_LEVELS.HOME_BASE) {
             dom.modeToggleBtn.classList.add('hidden'); // Hide End Run if home base is locked
         } else {
             dom.modeToggleBtn.classList.remove('hidden');
             dom.modeToggleBtn.textContent = 'End Run';
-        }
-    }
-
-    if (mode === 'invasionDefend') {
-        dom.levelSettingsButton.textContent = 'Invasion Settings';
-        dom.prevLevelBtn.textContent = 'Prev Wave';
-        dom.nextLevelBtn.textContent = 'Next Wave';
-        dom.clearBtn.classList.add('hidden');
-    } else {
-        dom.levelSettingsButton.textContent = 'Level Settings';
-        dom.prevLevelBtn.textContent = 'Prev Level';
-        dom.nextLevelBtn.textContent = 'Next Level';
-        if (mode !== 'homeBase') {
-            dom.clearBtn.classList.remove('hidden');
         }
     }
 
@@ -65,9 +80,9 @@ export function updateUIVisibilityForMode(mode) {
     
     // Save/Load Game Buttons
     dom.saveGameBtn.classList.toggle('hidden', !isHomeBase);
+    dom.quickLoadBtn.classList.toggle('hidden', !isAdventure);
 
-    dom.startNextWaveBtn.classList.toggle('hidden', true); // Always hide initially, game logic will show it
-
+    dom.startNextWaveBtn.classList.toggle('hidden', true); // Always hide old button
 
     // Resource banks visibility
     dom.foodBankEl.classList.toggle('hidden', !isHomeBase);
@@ -78,7 +93,6 @@ export function updateUIVisibilityForMode(mode) {
     dom.runContextPanel.classList.toggle('hidden', !isRun);
     dom.ballProducerUI.classList.add('hidden');
     dom.emptyCageUI.classList.add('hidden');
-
 }
 
 export function updateCheatButtonsVisibility() {

@@ -1031,7 +1031,9 @@ export const sketch = (p, state, callbacks) => {
                 // Generate Shop Items for next wave
                 runStats.mysteryShopItems = generateMysteryShopItems(runStats.invasionRunCoins || 0);
 
-                dom.startNextWaveBtn.classList.remove('hidden');
+                // dom.startNextWaveBtn.classList.remove('hidden'); // OLD
+                dom.invasionNextWaveBtn.classList.remove('hidden'); // NEW Toolbar button
+                
                 dom.invasionShopUI.classList.remove('hidden');
                 ui.renderInvasionShopUI();
             }
@@ -1083,8 +1085,11 @@ export const sketch = (p, state, callbacks) => {
                             let t = p.constructor.Vector.sub(npcPos, prevPos).dot(p.constructor.Vector.sub(currPos, prevPos)) / l2;
                             t = p.constrain(t, 0, 1);
                             const closestPoint = p.constructor.Vector.lerp(prevPos, currPos, t);
-        
-                            if (p.constructor.Vector.sub(npcPos, closestPoint).magSq() < npcRadius * npcRadius) {
+                            
+                            // Increase hit radius for Sniper projectiles against NPCs to make it easier to hit
+                            const hitRadiusSq = Math.pow(npcRadius * 1.5, 2);
+
+                            if (p.constructor.Vector.sub(npcPos, closestPoint).magSq() < hitRadiusSq) {
                                 processEvents(npc.takeDamage(proj.damage));
                                 proj.isDead = true;
                             }
@@ -1197,7 +1202,11 @@ export const sketch = (p, state, callbacks) => {
 
                 const canAutoCollect = state.gameMode === 'invasionDefend' || gameState !== 'aiming';
 
-                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < collectionRadius && canAutoCollect) {
+                // In InvasionDefend, expand the collection radius slightly by the orb's own radius 
+                // to ensure it gets collected as soon as it touches the attractor, preventing overshoot.
+                const effectiveCollectionRadius = state.gameMode === 'invasionDefend' ? collectionRadius + orb.radius : collectionRadius;
+
+                if (orb.cooldown <= 0 && orb.state !== 'collecting' && distToAttractor < effectiveCollectionRadius && canAutoCollect) {
                     orb.collect();
                     
                     let xpMultiplier = 1.0;
@@ -1361,7 +1370,7 @@ export const sketch = (p, state, callbacks) => {
             
             if (state.gameMode === 'invasionDefend') {
                 dom.invasionShopUI.classList.add('hidden');
-                dom.startNextWaveBtn.classList.add('hidden');
+                dom.invasionNextWaveBtn.classList.add('hidden'); // Hide NEW button
             }
             
             // Immediately set the state and trigger the UI update, bypassing the normal end-of-turn sequence.
@@ -1570,7 +1579,7 @@ export const sketch = (p, state, callbacks) => {
     p.startNextWave = async () => {
         // Clear all dynamic entities from the previous wave
         npcBalls = [];
-        xpOrbs = [];
+        // NOTE: xpOrbs are now persisted between waves!
         enchanterOrbs = [];
         projectiles = [];
         
@@ -1581,7 +1590,7 @@ export const sketch = (p, state, callbacks) => {
         dom.invasionShopUI.classList.add('hidden');
         
         gameState = 'playing';
-        dom.startNextWaveBtn.classList.add('hidden');
+        dom.invasionNextWaveBtn.classList.add('hidden'); // Hide the new button
         
         state.invasionWave++;
         if (state.invasionWave > 1) {

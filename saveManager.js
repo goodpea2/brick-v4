@@ -45,6 +45,8 @@ export function initialize(controller) {
             if (importSaveString(dataString)) {
                 dom.saveGameModal.classList.add('hidden');
                 if (state.p5Instance) state.p5Instance.isModalOpen = false;
+                // Immediately transfer player to Home Base upon successful load
+                if (gameController) gameController.enterHomeBase();
             }
         }
     });

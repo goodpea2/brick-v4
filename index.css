@@ -319,6 +319,7 @@
         flex-grow: 1;
         margin-top: 0;
         background-color: var(--color-bg3);
+        color: #fff;
     }
     .level-io-buttons .modal-action-button:hover {
         background-color: var(--color-bg);
@@ -579,6 +580,7 @@
 
     #run-equipment-btn {
         position: relative;
+        color: white;
     }
     @keyframes glow {
       0%, 100% { box-shadow: 0 0 3px #00e5ff; }
@@ -773,7 +775,7 @@
         right: 15px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 5px;
         align-items: flex-end;
     }
 
@@ -1390,6 +1392,7 @@
     #run-shop-btn {
         border: 1px solid #FFD700;
         width: 100px;
+        color: white;
     }
     .run-stats-grid .stat-label {
         font-size: 0.8em;
@@ -1767,6 +1770,7 @@
     }
     .modal-action-button.secondary {
         background-color: var(--color-bg3);
+        color: #fff;
     }
     .modal-action-button.secondary:hover {
         background-color: #555;
@@ -1934,9 +1938,9 @@
 
     /* Enchantment Charging Animation */
     @keyframes enchant-charge {
-        0% { width: 0%; background-color: #ff4136; box-shadow: 0 0 5px #ff4136; }
+        0% { background-color: #ff4136; box-shadow: 0 0 5px #ff4136; }
         50% { background-color: #FFD700; box-shadow: 0 0 15px #FFD700; }
-        100% { width: 100%; background-color: #fff; box-shadow: 0 0 25px #fff; }
+        100% { background-color: #fff; box-shadow: 0 0 25px #fff; }
     }
 
     .enchant-controls.charging .progress-bar-fill {

@@ -205,6 +205,7 @@ export const homeBaseShopModal = document.getElementById('homeBaseShopModal');
 
 // Save/Load Game
 export const saveGameBtn = document.getElementById('saveGameBtn');
+export const quickLoadBtn = document.getElementById('quickLoadBtn');
 export const loadGameBtn = document.getElementById('loadGameBtn');
 export const saveGameModal = document.getElementById('saveGameModal');
 export const saveGameTextarea = document.getElementById('saveGameTextarea');
@@ -272,5 +273,7 @@ export const enchantmentModal = document.getElementById('enchantmentModal');
 
 // Invasion Defend
 export const startNextWaveBtn = document.getElementById('startNextWaveBtn');
+export const invasionNextWaveBtn = document.getElementById('invasionNextWaveBtn');
+export const invasionEndBtn = document.getElementById('invasionEndBtn');
 export const invasionShopUI = document.getElementById('invasion-shop-ui');
 export const invasionShopCoinCountEl = document.getElementById('invasion-shop-coin-count');
