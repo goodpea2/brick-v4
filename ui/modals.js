@@ -1,11 +1,13 @@
 
 
+
 // ui/modals.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
 import { UNLOCK_DESCRIPTIONS } from '../text.js';
 import { sounds } from '../sfx.js';
 import { MILESTONE_LEVELS } from '../firstTimeLevels.js';
+import { UNLOCK_LEVELS } from '../balancing.js';
 
 function closeModalWithAnimation(modalElement) {
     if (!modalElement) return;
@@ -93,13 +95,20 @@ export function showLevelCompleteModal(stats, gameController, level) {
         return;
     }
 
-    const specialRoomChoices = [
+    let specialRoomChoices = [
         { value: { type: 'gem', text: 'Continue 💎', description: 'Next level has +5 guaranteed Gems, but no +1 Ball bricks.' }, weight: 1 },
         { value: { type: 'food', text: 'Continue 🥕', description: 'Coins in the next level are replaced with Food.' }, weight: 3 },
         { value: { type: 'wood', text: 'Continue 🪵', description: 'Coins in the next level are replaced with Log Bricks.' }, weight: 3 },
         { value: { type: 'lucky', text: 'Continue 🍀', description: 'A random positive event will occur in the next level.' }, weight: 2 },
         { value: { type: 'danger', text: 'Continue ⚠️', description: 'The next level will be much harder, but with bonus Gem rewards.' }, weight: 2 },
     ];
+    
+    // Filter out Food/Wood rooms if Home Base is not yet unlocked
+    if (state.mainLevel < UNLOCK_LEVELS.HOME_BASE) {
+        specialRoomChoices = specialRoomChoices.filter(choice => 
+            choice.value.type !== 'food' && choice.value.type !== 'wood'
+        );
+    }
     
     const numOptionsChoices = [
         { value: 'normal_only', weight: 10 },

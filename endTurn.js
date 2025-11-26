@@ -1,3 +1,4 @@
+
 // endTurn.js
 
 import { state } from './state.js';
@@ -87,6 +88,7 @@ export function handleEndTurnEffects(context) {
                 state.xpForNextLevel = XP_SETTINGS.xpBaseAmount * state.mainLevel * (state.mainLevel + 1) / 2;
                 sounds.levelUp();
                 ui.showLevelUpModal(state.mainLevel);
+                ui.updateUIVisibilityForMode(state.gameMode);
 
                 if (newLevel >= 19) {
                     state.playerGems += 10;

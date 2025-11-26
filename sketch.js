@@ -139,6 +139,7 @@ export const sketch = (p, state, callbacks) => {
             state.xpForNextLevel = XP_SETTINGS.xpBaseAmount * state.mainLevel * (state.mainLevel + 1) / 2;
             sounds.levelUp();
             ui.showLevelUpModal(state.mainLevel);
+            ui.updateUIVisibilityForMode(state.gameMode); // Ensure unlockables (like Gem Bank) appear instantly
 
             // Rewards
             if (newLevel >= 19) {
