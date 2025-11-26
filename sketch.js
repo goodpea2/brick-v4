@@ -1,5 +1,4 @@
-
-// sketch.js - The core p5.js game logic
+    // sketch.js - The core p5.js game logic
 
 import { UNLOCK_LEVELS, GRID_CONSTANTS, XP_SETTINGS, AIMING_SETTINGS, INITIAL_UPGRADE_STATE, BALL_STATS, BRICK_STATS, HOME_BASE_PRODUCTION, TRIAL_RUN_LEVEL_SETTINGS, NPC_BALL_STATS, INVASION_MODE_PARAMS, ENCHANTER_STATS, INVASION_SHOP_ITEMS } from './balancing.js';
 import { Ball, MiniBall, createBallVisuals, calculateBallDamage, Projectile, SniperProjectile } from './ball.js';
@@ -2759,7 +2758,9 @@ export const sketch = (p, state, callbacks) => {
         } 
     };
     p.mouseDragged = (evt) => {
-        if (p.isModalOpen || evt.target !== p.canvas || !p.mouseIsPressed) return;
+        if (p.isModalOpen) return;
+        // Ensure evt matches canvas, allow if mouse is pressed OR touches exist (mobile)
+        if ((evt && evt.target !== p.canvas) || (!p.mouseIsPressed && p.touches.length === 0)) return;
 
         // Calculate clickedBrick for the current mouse position
         const gridC = Math.floor((p.mouseX - board.genX) / board.gridUnitSize);
@@ -2779,8 +2780,7 @@ export const sketch = (p, state, callbacks) => {
         
         if ((state.gameMode === 'homeBase' && !state.isEditorMode)) {
             const isHomeBase = state.gameMode === 'homeBase';
-            // Remove the logic that selects new bricks while dragging.
-            // Only perform harvesting actions.
+            const bricksToInteract = isHomeBase ? homeBaseBricks : bricks;
 
             if (isHomeBase) {
                 // We clear harvested set on mouseRelease, so dragging accumulates harvested set.
@@ -2961,9 +2961,8 @@ export const sketch = (p, state, callbacks) => {
         } 
     };
     p.touchStarted = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mousePressed(evt); return false; };
-    p.touchMoved = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mouseDragged(); if(isAiming || state.isEditorMode || state.gameMode === 'homeBase' || (state.gameMode === 'invasionDefend' && gameState === 'aiming'))return false; };
+    p.touchMoved = (evt) => { if(evt.target!==p.canvas)return; if(p.touches.length>0)p.mouseDragged(evt); if(isAiming || state.isEditorMode || state.gameMode === 'homeBase' || (state.gameMode === 'invasionDefend' && gameState === 'aiming'))return false; };
     p.touchEnded = (evt) => { if(evt.target!==p.canvas)return; p.mouseReleased(); return false; };
-    
     p.windowResized = () => { 
         const container = document.getElementById('canvas-container'); 
         p.resizeCanvas(container.clientWidth, container.clientHeight); 
