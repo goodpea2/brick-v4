@@ -7,7 +7,7 @@ import { Brick } from './brick.js';
 import { renderHomeBaseShopUI } from './ui/homeBaseShop.js';
 import { updateHeaderUI } from './ui/header.js';
 import { XP_SETTINGS, ENCHANTMENT_OUTCOMES, BALL_STATS, BRICK_STATS } from './balancing.js';
-import { OVERLAY_LEVELING_DATA } from './brickLeveling.js';
+import { OVERLAY_LEVELING_DATA, BRICK_LEVELING_DATA } from './brickLeveling.js';
 
 let gameController = null;
 
@@ -57,6 +57,13 @@ function exportSaveString() {
     const homeBaseBricks = gameController.getHomeBaseBricks();
     const board = gameController.getBoard();
 
+    // Calculate total goal XP
+    let totalGoalXp = state.goalBrickXp;
+    for (let i = 1; i < state.goalBrickLevel; i++) {
+        const levelData = BRICK_LEVELING_DATA.goal[i-1];
+        if (levelData) totalGoalXp += levelData.maxXp;
+    }
+
     // 1. Progression & Player Stats
     const progression = {
         lifetimeXp: state.lifetimeXp,
@@ -67,7 +74,8 @@ function exportSaveString() {
         highestLevelReached: state.highestLevelReached,
         trialRunHighestLevelReached: state.trialRunHighestLevelReached,
         previousRunLevel: state.previousRunLevel,
-        highestInvasionWave: state.invasionWave
+        highestInvasionWave: state.invasionWave,
+        totalGoalXp: totalGoalXp
     };
 
     // 2. Resources
@@ -179,6 +187,23 @@ function importSaveString(jsonString) {
             state.trialRunHighestLevelReached = saveData.progression.trialRunHighestLevelReached || 0;
             state.previousRunLevel = saveData.progression.previousRunLevel || 0;
             state.invasionWave = saveData.progression.highestInvasionWave || 1;
+
+            // Restore Goal Brick Progression
+            if (saveData.progression.totalGoalXp !== undefined) {
+                let remGoalXp = saveData.progression.totalGoalXp;
+                let goalLvl = 1;
+                while (true) {
+                    const levelData = BRICK_LEVELING_DATA.goal[goalLvl - 1];
+                    if (!levelData || remGoalXp < levelData.maxXp) break;
+                    remGoalXp -= levelData.maxXp;
+                    goalLvl++;
+                }
+                state.goalBrickLevel = goalLvl;
+                state.goalBrickXp = remGoalXp;
+            } else {
+                state.goalBrickLevel = 1;
+                state.goalBrickXp = 0;
+            }
         }
 
         // 2. Restore Resources

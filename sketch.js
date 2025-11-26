@@ -1,3 +1,4 @@
+
     // sketch.js - The core p5.js game logic
 
 import { UNLOCK_LEVELS, GRID_CONSTANTS, XP_SETTINGS, AIMING_SETTINGS, INITIAL_UPGRADE_STATE, BALL_STATS, BRICK_STATS, HOME_BASE_PRODUCTION, TRIAL_RUN_LEVEL_SETTINGS, NPC_BALL_STATS, INVASION_MODE_PARAMS, ENCHANTER_STATS, INVASION_SHOP_ITEMS } from './balancing.js';
@@ -545,6 +546,10 @@ export const sketch = (p, state, callbacks) => {
         
                     if (goalBricksLeft === 0) {
                         gameState = 'levelComplete';
+                        // Milestone Check Fix
+                        if (MILESTONE_LEVELS[level] && !state.milestonesCompleted[level]) {
+                            state.milestonesCompleted[level] = true;
+                        }
                     } else {
                         gameState = 'aiming';
                     }
