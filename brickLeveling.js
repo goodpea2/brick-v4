@@ -118,7 +118,7 @@ export const BRICK_LEVELING_DATA = {
     Farmland: [
         {
             level: 1,
-            stats: { maxHealth: 10, health: 10, productionRate: 10, localResourceCapacity: 0 },
+            stats: { maxHealth: 10, health: 10, productionRate: 10, localResourceCapacity: 10 },
             sellValue: 50
         },
         {
@@ -175,7 +175,7 @@ export const BRICK_LEVELING_DATA = {
     Sawmill: [
         {
             level: 1,
-            stats: { maxHealth: 10, health: 10, productionRate: 10, localResourceCapacity: 0 },
+            stats: { maxHealth: 10, health: 10, productionRate: 10, localResourceCapacity: 10 },
             sellValue: 50
         },
         {

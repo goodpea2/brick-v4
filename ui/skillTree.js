@@ -33,7 +33,7 @@ export function renderSkillTreeUI() {
                 bonusText = `<div class="skill-card-bonus">Total: +${total * 10}%</div>`;
             } else if (skill.id.startsWith('explosive_damage')) {
                 const total = ['explosive_damage_1', 'explosive_damage_2'].filter(id => state.skillTreeState[id]).length;
-                bonusText = `<div class="skill-card-bonus">Total: +${total * 10} Damage</div>`;
+                bonusText = `<div class="skill-card-bonus">Total: +${total * 5} Damage</div>`;
             } else if (skill.id.startsWith('starting_coin')) {
                 const total = ['starting_coin_1', 'starting_coin_2', 'starting_coin_3', 'starting_coin_4'].filter(id => state.skillTreeState[id]).length;
                 bonusText = `<div class="skill-card-bonus">Total: +${total * 5} 🪙</div>`;

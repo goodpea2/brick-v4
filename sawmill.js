@@ -166,11 +166,12 @@ export function handleSawmillGeneration(p, homeBaseBricks, board) {
                 const amountToStore = Math.min(woodNotPlaced, spaceInLocal);
                 sawmill.localResourceStorage += amountToStore;
                 const remainingWood = woodNotPlaced - amountToStore;
-                if (remainingWood > 0) {
-                    sawmill.internalResourcePool += remainingWood; // Refund overflow
-                }
+                // DO NOT REFUND: If storage is full and no space to spawn, the production is wasted.
+                // This prevents infinite stacking.
+                // if (remainingWood > 0) { sawmill.internalResourcePool += remainingWood; } 
             } else {
-                sawmill.internalResourcePool += woodNotPlaced; // Refund all
+                // DO NOT REFUND
+                // sawmill.internalResourcePool += woodNotPlaced; 
             }
         }
     });

@@ -218,6 +218,11 @@ export const sketch = (p, state, callbacks) => {
                     processedBricks.add(brick);
                     if ((brick.type === 'Farmland' || brick.type === 'Sawmill') && brick.productionRate > 0) {
                         brick.internalResourcePool += (brick.productionRate / 3600) * timeMultiplier;
+                        
+                        // Farmland uses internalResourcePool as its actual storage, so we must cap it here.
+                        if (brick.type === 'Farmland' && brick.internalResourcePool > brick.localResourceCapacity) {
+                            brick.internalResourcePool = brick.localResourceCapacity;
+                        }
                     }
 
                     if (brick.type === 'BallProducer') {

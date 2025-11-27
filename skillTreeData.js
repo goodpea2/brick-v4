@@ -1,3 +1,4 @@
+
 // skillTreeData.js
 
 export const SKILL_TREE_DATA = [
@@ -17,7 +18,7 @@ export const SKILL_TREE_DATA = [
     // Row 4
     [
         { id: 'magnet_radius_1', name: '+10% Magnet Radius', description: 'Increases the collection radius for XP Orbs.', cost: 6 },
-        { id: 'explosive_damage_1', name: '+10 Explosive Brick Damage', description: 'Increases the damage of Explosive Bricks.', cost: 6 },
+        { id: 'explosive_damage_1', name: '+5 Explosive Brick Damage', description: 'Increases the damage of Explosive Bricks.', cost: 6 },
     ],
     // Row 5
     [
@@ -50,7 +51,7 @@ export const SKILL_TREE_DATA = [
     // Row 11
     [
         { id: 'magnet_radius_3', name: '+10% Magnet Radius', description: 'Increases the collection radius for XP Orbs.', cost: 10 },
-        { id: 'explosive_damage_2', name: '+10 Explosive Brick Damage', description: 'Increases the damage of Explosive Bricks.', cost: 10 },
+        { id: 'explosive_damage_2', name: '+5 Explosive Brick Damage', description: 'Increases the damage of Explosive Bricks.', cost: 10 },
     ],
     // Row 12
     [

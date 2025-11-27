@@ -158,8 +158,8 @@ export function applyAllUpgrades() {
     // Skill Tree Upgrades
     let explosiveDamageBonus = 0;
     if (state.gameMode === 'adventureRun') {
-        if (state.skillTreeState['explosive_damage_1']) explosiveDamageBonus += 10;
-        if (state.skillTreeState['explosive_damage_2']) explosiveDamageBonus += 10;
+        if (state.skillTreeState['explosive_damage_1']) explosiveDamageBonus += 5;
+        if (state.skillTreeState['explosive_damage_2']) explosiveDamageBonus += 5;
     }
     state.upgradeableStats.explosiveBrickDamage = 30 + explosiveDamageBonus;
 }

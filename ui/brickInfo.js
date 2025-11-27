@@ -520,6 +520,17 @@ export function updateBrickInfoPanel(brick, gameController) {
         }
     });
 
+    // Display Internal Storage / Capacity for producers
+    if (brick.type === 'Farmland') {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>Food Stored:</span> <span>${Math.floor(brick.internalResourcePool || 0)} / ${brick.localResourceCapacity || 0}</span>`;
+        dom.brickInfoStats.appendChild(li);
+    } else if (brick.type === 'Sawmill') {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>Wood Stored:</span> <span>${Math.floor(brick.localResourceStorage || 0)} / ${brick.localResourceCapacity || 0}</span>`;
+        dom.brickInfoStats.appendChild(li);
+    }
+
     // --- UPGRADE SECTION ---
     const upgradeSection = dom.brickInfoPanel.querySelector('.upgrade-section');
     upgradeSection.style.display = (showUpgrade && brick.type !== 'goal') ? 'block' : 'none';
