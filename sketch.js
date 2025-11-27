@@ -2425,14 +2425,14 @@ export const sketch = (p, state, callbacks) => {
                     if (evt.foodDropped > 0) {
                         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
                             levelStats.foodCollected += evt.foodDropped;
-                            gameController.getRunStats().totalFoodCollected += evt.foodDropped;
+                            runStats.totalFoodCollected += evt.foodDropped;
                         } else {
                             state.playerFood = Math.min(state.maxFood, state.playerFood + evt.foodDropped);
                         }
                         sounds.foodCollect();
                         floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
                         const canvasRect = p.canvas.getBoundingClientRect();
-                        animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + centerVec.y, evt.foodDropped);
+                        animateFoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, evt.foodDropped);
                     }
 
                     particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
@@ -2707,7 +2707,9 @@ export const sketch = (p, state, callbacks) => {
                             const context = {
                                 p, board, bricks, processEvents, processBrokenBricks, 
                                 ballsInPlay, sharedBallStats, levelStats, floatingTexts, 
-                                shockwaves, particles, sounds, gameStateRef: {value: gameState}, ballsLeftRef: {value: ballsLeft} // Added particles
+                                shockwaves, particles, sounds, gameStateRef: {value: gameState}, ballsLeftRef: {value: ballsLeft}, // Added particles
+                                gameController: p, 
+                                BRICK_STATS
                             };
                             handleBrickSpawnPowerup(effect, context);
                         }
