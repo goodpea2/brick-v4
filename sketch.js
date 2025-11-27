@@ -1421,6 +1421,10 @@ export const sketch = (p, state, callbacks) => {
         applyAllUpgrades();
         state.equipmentBrickSpawnChance = settings.equipmentBrickInitialChance;
 
+        if (state.skillTreeState['starting_equipment_brick']) {
+            state.equipmentBrickSpawnChance = 1.0;
+        }
+
         runStats = {
             totalBallsUsed: 0,
             totalDamageDealt: 0,

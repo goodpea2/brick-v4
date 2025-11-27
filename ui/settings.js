@@ -1,3 +1,4 @@
+
 // ui/settings.js
 import * as dom from '../dom.js';
 import { state } from '../state.js';
@@ -57,9 +58,6 @@ export function getLevelSettings() {
     }
     if (state.skillTreeState['explosive_chance_2']) {
         userSettings.explosiveBrickChance += 0.005;
-    }
-    if (state.skillTreeState['starting_equipment_brick']) {
-        userSettings.equipmentBrickInitialChance = 1.0; // 100%
     }
 
     return userSettings;
