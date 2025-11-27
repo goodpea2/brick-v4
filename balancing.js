@@ -18,7 +18,7 @@ export const BALL_STATS = {
             baseDamage: 10,
             powerUpUses: 2,
             radiusTiles: 2.5,
-            damage: 30,
+            damage: 10,
             radiusMultiplier: 0.28,
         },
         piercing: {
@@ -56,7 +56,7 @@ export const BALL_STATS = {
             baseDamage: 10,
             powerUpUses: 3,
             speedMultiplier: 0.6,
-            damage: 10,
+            damage: 40,
             radiusMultiplier: 0.28,
         },
         homing: {
@@ -460,12 +460,12 @@ export const SHOP_PARAMS = {
     costIncrementRate: 1.5,
     extraBallHp: { baseCost: 50, value: 10, baseValue: 0 },
     aimLength: { baseCost: 30, value: 0.2, baseValue: 0.4 },
-    powerExplosionDamage: { baseCost: 50, value: 10, baseValue: BALL_STATS.types.explosive.damage },
+    powerExplosionDamage: { baseCost: 50, value: 4, baseValue: BALL_STATS.types.explosive.damage },
     piercingBonusDamage: { baseCost: 50, value: 2, baseValue: 0 },
     splitDamage: { baseCost: 80, value: 2, baseValue: BALL_STATS.types.miniball.baseDamage },
     brickCoinChance: { baseCost: 50, value: 6, baseValue: BALL_STATS.types.brick.coinChancePercent },
     bonusXp: { baseCost: 50, value: 10, baseValue: 0 },
-    bulletDamage: { baseCost: 70, value: 5, baseValue: BALL_STATS.types.bullet.damage },
+    bulletDamage: { baseCost: 70, value: 10, baseValue: BALL_STATS.types.bullet.damage },
     homingExplosionRadius: { baseCost: 80, value: 0.2, baseValue: 0 },
 };
 
@@ -565,7 +565,7 @@ export const ENCHANTMENT_REQUIREMENTS = [
 
 export const ENCHANTMENT_OUTCOMES = {
     classic: {
-        A: { name: 'HP', text: '+10% Max HP', apply: (stats) => stats.hpMultiplier *= 1.12 },
+        A: { name: 'HP', text: '+15% Max HP', apply: (stats) => stats.hpMultiplier *= 1.15 },
         B: { name: 'Damage', text: '+20% Base Damage', apply: (stats) => stats.damageMultiplier *= 1.26 },
         C: { name: 'Chain Damage', text: '+2 Chain Damage', apply: (stats) => stats.bonusChainDamage = (stats.bonusChainDamage || 0) + 2 },
     },
@@ -602,7 +602,7 @@ export const ENCHANTMENT_OUTCOMES = {
 };
 
 export const INVASION_MODE_PARAMS = {
-    ENCHANTER_DROP_RATE_PER_COST: 0.001, // e.g., cost 100 -> 10% chance
+    ENCHANTER_DROP_RATE_PER_COST: 0.002, // e.g., cost 100 -> 20% chance
     ENCHANTER_II_UPGRADE_CHANCE: 0.2,   // 20% chance on 100hp mobs
     ECT3_CHANCE_PER_1000_COST: 0.05,     // +5% chance for Ect3 event per 1000 cost
 };
@@ -613,7 +613,7 @@ export const INVASION_SHOP_ITEMS = [
         name: 'Place Normal Brick',
         description: 'Places a new Level 1 Normal Brick in a random empty spot.',
         baseCost: 25,
-        costIncrement: 10,
+        costIncrement: 5,
         action: 'placeBrick'
     },
     {
@@ -629,7 +629,7 @@ export const INVASION_SHOP_ITEMS = [
         name: 'Apply Spike Overlay',
         description: 'Adds a Spike overlay (Lv.1) to a random Normal Brick.',
         baseCost: 25,
-        costIncrement: 15,
+        costIncrement: 10,
         action: 'applyOverlay'
     },
     {
@@ -637,7 +637,7 @@ export const INVASION_SHOP_ITEMS = [
         name: 'Apply Sniper Overlay',
         description: 'Adds a Sniper overlay (Lv.1) to a random Normal Brick.',
         baseCost: 75,
-        costIncrement: 25,
+        costIncrement: 20,
         action: 'applyOverlay'
     }
 ];
