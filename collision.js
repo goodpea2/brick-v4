@@ -257,7 +257,7 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                         const damage = calculateBallDamage(b, combo, state) * damageMultiplier;
                         const hitResult = brick.hit(damage, b, board);
                         if (hitResult) {
-                            if (brick.retaliateDamage > 0 && b.isGhost === false) {
+                            if (brick.retaliateDamage > 0 && !b.isGhost) {
                                 let damageEvent = null;
                                 if (b instanceof MiniBall) {
                                     damageEvent = { type: 'damage_taken', source: 'retaliation', ballType: b.parentType, damageAmount: brick.retaliateDamage, position: b.pos.copy() };
@@ -273,19 +273,6 @@ export function checkCollisions(p, b, board, bricks, combo, state) {
                                     if (runStats) {
                                         runStats.totalMetalCollected = (runStats.totalMetalCollected || 0) + 1;
                                         p.addFloatingText('+1 🪨', p.color(192, 192, 192), { isBold: true }, b.pos);
-                                        
-                                        const endPos = dom.invasionLootPanel.getBoundingClientRect();
-                                        const canvasRect = p.canvas.getBoundingClientRect();
-                                        const targetPos = p.createVector(
-                                            endPos.left - canvasRect.left + endPos.width / 2,
-                                            endPos.top - canvasRect.top + endPos.height / 2
-                                        );
-                                        
-                                        // We can't easily add flying icons directly from here without modifying checkCollisions args significantly or using a global/shared array.
-                                        // However, the FlyingIcon class is exported from vfx.js and checkCollisions is called from sketch.js.
-                                        // sketch.js passes flyingIcons array to renderGame, but not here.
-                                        // A workaround is to dispatch an event or rely on the floating text.
-                                        // For simplicity, we'll stick to FloatingText here as visual feedback.
                                         renderTrialLootPanel();
                                     }
                                 }

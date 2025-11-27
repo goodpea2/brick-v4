@@ -1,5 +1,4 @@
 
-
 // brick.js
 
 import { BRICK_STATS, BRICK_VISUALS, HOME_BASE_PRODUCTION } from './balancing.js';
@@ -56,9 +55,9 @@ export class Brick {
         this.spawnDelay = 0;
         
         if (state.gameMode === 'homeBase' && BRICK_STATS.canCarryFood[this.type]) {
-            this.maxFood = 10;
+            this.maxFood = 20;
             this.foodIndicatorPositions = [];
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < this.maxFood; i++) {
                 this.foodIndicatorPositions.push(p.createVector(p.random(this.size * 0.1, this.size * 0.9), p.random(this.size * 0.1, this.size * 0.9)));
             }
         }
@@ -627,7 +626,7 @@ export class Brick {
              }
          }
         if (this.maxFood > 0 && this.food > 0 && this.foodIndicatorPositions) {
-            const numIndicators = p.min(Math.ceil(this.food / 3), this.foodIndicatorPositions.length);
+            const numIndicators = p.min(Math.ceil(this.food), this.foodIndicatorPositions.length);
             p.textAlign(p.CENTER, p.CENTER);
             const iconSize = this.size * 0.4;
             p.textSize(iconSize);

@@ -1,3 +1,4 @@
+
 // ball.js 
 // enchantment symbols for a future feature 🌿🫘🧆🍬🍭
 import { state } from './state.js';
@@ -243,6 +244,7 @@ export class MiniBall {
         this.mainBallIsDead = false;
         this.parentType = parentType;
         this.type = 'miniball';
+        this.isGhost = false;
     }
 
     update(board, ball, checkBrickCollisions) {

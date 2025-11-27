@@ -858,7 +858,11 @@ export const sketch = (p, state, callbacks) => {
                             currentTarget = nearestNpc;
                         }
                     } else {
-                         currentTarget = ballsInPlay.length > 0 ? ballsInPlay[0] : null; 
+                         // Combine balls and miniballs for targeting in player mode
+                         const targets = [...ballsInPlay, ...miniBalls];
+                         if (targets.length > 0) {
+                            currentTarget = targets[0]; // Just target the first for simplicity
+                        }
                     }
 
                     // Firing condition
@@ -890,6 +894,11 @@ export const sketch = (p, state, callbacks) => {
         if (lasers.length > 0) {
             const targets = [];
             if (ballsInPlay.length > 0) targets.push(ballsInPlay[0]);
+            // Add miniballs to laser targets? The previous logic didn't, keeping consistent with Sniper
+            // Wait, Sniper targets miniBalls now. Lasers should probably too? 
+            // The prompt didn't explicitly ask for Laser vs MiniBall, but consistency is good.
+            // However, sticking strictly to prompt: only Sniper hits drop Wire.
+            
             if (state.gameMode === 'invasionDefend') targets.push(...npcBalls);
 
             if (targets.length > 0) {
@@ -1109,7 +1118,8 @@ export const sketch = (p, state, callbacks) => {
                         }
                     }
                 } else {
-                    for (const ball of ballsInPlay) {
+                    const targets = [...ballsInPlay, ...miniBalls];
+                    for (const ball of targets) {
                         if (p.dist(proj.pos.x, proj.pos.y, ball.pos.x, ball.pos.y) < proj.radius + ball.radius) {
                             const damageEvent = ball.takeDamage(proj.damage, 'sniper');
                             if (damageEvent) processEvents([damageEvent]);
@@ -2406,14 +2416,14 @@ export const sketch = (p, state, callbacks) => {
                     if (evt.foodDropped > 0) {
                         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
                             levelStats.foodCollected += evt.foodDropped;
-                            runStats.totalFoodCollected += evt.foodDropped;
+                            gameController.getRunStats().totalFoodCollected += evt.foodDropped;
                         } else {
                             state.playerFood = Math.min(state.maxFood, state.playerFood + evt.foodDropped);
                         }
                         sounds.foodCollect();
                         floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
                         const canvasRect = p.canvas.getBoundingClientRect();
-                        ui.animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.foodDropped);
+                        animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + centerVec.y, evt.foodDropped);
                     }
 
                     particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
@@ -2614,10 +2624,10 @@ export const sketch = (p, state, callbacks) => {
             if (clickedBrick) {
                 if (isHomeBase) {
                     if (clickedBrick.food > 0) {
-                        harvestFood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });
-                        homeBaseHarvestedThisDrag.add(clickedBrick);
-                        // Don't select if harvesting
-                        return; 
+                        if (harvestFood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p })) {
+                            homeBaseHarvestedThisDrag.add(clickedBrick);
+                            return;
+                        }
                     }
                     if (clickedBrick.type === 'LogBrick') {
                         harvestWood(clickedBrick, { homeBaseBricks, board, p, flyingIcons, gameController: p });

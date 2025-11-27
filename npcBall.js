@@ -1,5 +1,6 @@
+
 // npcBall.js
-import { NPC_BALL_STATS } from './balancing.js';
+import { NPC_BALL_STATS, BRICK_STATS } from './balancing.js';
 import { sounds } from './sfx.js';
 import { Projectile } from './ball.js';
 
@@ -202,6 +203,17 @@ export class NPCBall {
         if (steps <= 0) return;
         const stepVel = this.p.constructor.Vector.div(this.vel, steps);
 
+        // Scan for shield generators once per frame
+        const shieldGenerators = [];
+        for (let c = 0; c < board.cols; c++) {
+            for (let r = 0; r < board.rows; r++) {
+                const b = bricks[c][r];
+                if (b && b.type === 'shieldGen') {
+                    shieldGenerators.push(b);
+                }
+            }
+        }
+
         for (let i = 0; i < steps; i++) {
             this.pos.add(stepVel);
             let hitEvents = [];
@@ -253,10 +265,27 @@ export class NPCBall {
                         const dY = this.pos.y - testY;
 
                         if (this.p.sqrt(dX * dX + dY * dY) <= this.radius) {
+                            
+                            // ShieldGen Reduction Logic
+                            let damageMultiplier = 1.0;
+                            if (brick.type !== 'shieldGen') {
+                                for (const shieldGen of shieldGenerators) {
+                                    const shieldGenPos = shieldGen.getPixelPos(board).add((shieldGen.size * shieldGen.widthInCells) / 2, (shieldGen.size * shieldGen.heightInCells) / 2);
+                                    const brickCenterPos = brick.getPixelPos(board).add(brickWidth / 2, brickHeight / 2);
+                                    const auraRadius = board.gridUnitSize * BRICK_STATS.shieldGen.auraRadiusTiles;
+                                    const distSq = this.p.pow(shieldGenPos.x - brickCenterPos.x, 2) + this.p.pow(shieldGenPos.y - brickCenterPos.y, 2);
+                                    if (distSq <= this.p.pow(auraRadius, 2)) {
+                                        damageMultiplier *= BRICK_STATS.shieldGen.damageReduction;
+                                        break;
+                                    }
+                                }
+                            }
+                            const effectiveDamage = this.damage * damageMultiplier;
+
                             if (this.type.startsWith('NPC_piercing') && this.piercingContactsLeft > 0 && !this.piercedBricks.has(brick)) {
                                 this.piercingContactsLeft--;
                                 this.piercedBricks.add(brick);
-                                const hitResult = brick.hit(this.damage, 'npc_ball_piercing', board);
+                                const hitResult = brick.hit(effectiveDamage, 'npc_ball_piercing', board);
                                 if (hitResult) hitEvents.push({ type: 'brick_hit', ...hitResult, source: 'npc_ball_piercing' });
                                 hitEvents.push(...this.takeDamage(this.brickHitDamage));
                                 processEvents(hitEvents);
@@ -279,7 +308,7 @@ export class NPCBall {
                             
                             resolveBounce(this, { x: brickPos.x, y: brickPos.y, w: brickWidth, h: brickHeight });
                             
-                            const hitResult = brick.hit(this.damage, 'npc_ball', board);
+                            const hitResult = brick.hit(effectiveDamage, 'npc_ball', board);
                             if (hitResult) {
                                 hitEvents.push({ type: 'brick_hit', ...hitResult, source: 'npc_ball' });
                             }

@@ -382,7 +382,7 @@ export const UNLOCK_LEVELS = {
     INVASION_MODE: 17,
     HOMING_BALL: 18,
     BALL_CAGE_BRICK: 19,
-    SPECIAL_BRICKS: 9999, // unused
+    SPECIAL_BRICKS: 1, // always available
     ENCHANTMENT: 20,
     TRIAL_RUN: 22,
     OVERLAY_SHOP: 24,
