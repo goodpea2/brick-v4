@@ -15,7 +15,7 @@ let isEnchanting = false;
 
 export const BALL_ENCHANTMENT_DISPLAY_CONFIG = {
     classic: [
-        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.10, format: v => v.toFixed(0) },
+        { name: 'Hit Point', getCurrent: (base, ench) => base.hp * ench.hpMultiplier, getIncrease: (curr) => curr * 0.15, format: v => v.toFixed(0) },
         { name: 'Direct Damage', getCurrent: (base, ench) => base.baseDamage * ench.damageMultiplier, getIncrease: (curr) => curr * 0.20, format: v => v.toFixed(1) },
         { name: 'Chain Damage', getCurrent: (base, ench) => ench.bonusChainDamage || 0, getIncrease: () => 2, format: v => v }
     ],
