@@ -1,4 +1,5 @@
 
+
     // sketch.js - The core p5.js game logic
 
 import { UNLOCK_LEVELS, GRID_CONSTANTS, XP_SETTINGS, AIMING_SETTINGS, INITIAL_UPGRADE_STATE, BALL_STATS, BRICK_STATS, HOME_BASE_PRODUCTION, TRIAL_RUN_LEVEL_SETTINGS, NPC_BALL_STATS, INVASION_MODE_PARAMS, ENCHANTER_STATS, INVASION_SHOP_ITEMS } from './balancing.js';
@@ -1290,7 +1291,7 @@ export const sketch = (p, state, callbacks) => {
                     
                     sounds.enchanterCollect();
                     const icon = ENCHANTER_STATS[orb.type].icon;
-                    floatingTexts.push(new FloatingText(p, orb.pos.x, orb.pos.y, `+1 ${icon}`, p.color(221, 191, 216), { isBold: true, size: 16 }));
+                    floatingTexts.push(new FloatingText(p, orb.pos.x, orb.pos.y, `+${icon}`, p.color(221, 191, 216), { isBold: true, size: 16 }));
                     
                     break; 
                 }
@@ -2425,14 +2426,16 @@ export const sketch = (p, state, callbacks) => {
                     if (evt.foodDropped > 0) {
                         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
                             levelStats.foodCollected += evt.foodDropped;
-                            runStats.totalFoodCollected += evt.foodDropped;
+                            // runStats is available locally in sketch.js, so using it directly is fine.
+                            // If the user error was about gameController, it might have been they tried to use gameController here.
+                            runStats.totalFoodCollected = (runStats.totalFoodCollected || 0) + evt.foodDropped;
                         } else {
                             state.playerFood = Math.min(state.maxFood, state.playerFood + evt.foodDropped);
                         }
                         sounds.foodCollect();
                         floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
                         const canvasRect = p.canvas.getBoundingClientRect();
-                        animateFoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, evt.foodDropped);
+                        ui.animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.foodDropped);
                     }
 
                     particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
