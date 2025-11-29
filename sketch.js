@@ -1,5 +1,9 @@
 
 
+
+
+
+
     // sketch.js - The core p5.js game logic
 
 import { UNLOCK_LEVELS, GRID_CONSTANTS, XP_SETTINGS, AIMING_SETTINGS, INITIAL_UPGRADE_STATE, BALL_STATS, BRICK_STATS, HOME_BASE_PRODUCTION, TRIAL_RUN_LEVEL_SETTINGS, NPC_BALL_STATS, INVASION_MODE_PARAMS, ENCHANTER_STATS, INVASION_SHOP_ITEMS } from './balancing.js';
@@ -1204,6 +1208,7 @@ export const sketch = (p, state, callbacks) => {
         if (state.skillTreeState['magnet_radius_2']) ownedMagnetRadiusUpgrades++;
         if (state.skillTreeState['magnet_radius_3']) ownedMagnetRadiusUpgrades++;
         if (state.skillTreeState['magnet_radius_4']) ownedMagnetRadiusUpgrades++;
+        if (state.skillTreeState['magnet_radius_5']) ownedMagnetRadiusUpgrades++;
 
         const effectiveRadiusMultiplier = XP_SETTINGS.baseMagneticRadiusMultiplier + (ownedMagnetRadiusUpgrades * 0.5);
         const equipmentMagneticMultiplier = xpMagnet ? xpMagnet.value.radius : 1;
@@ -1235,6 +1240,7 @@ export const sketch = (p, state, callbacks) => {
                         if (state.skillTreeState['golden_shot_xp_1']) xpMultiplier += 1.0;
                         if (state.skillTreeState['golden_shot_xp_2']) xpMultiplier += 1.0;
                         if (state.skillTreeState['golden_shot_xp_3']) xpMultiplier += 1.0;
+                        if (state.skillTreeState['golden_shot_xp_4']) xpMultiplier += 1.0;
                     }
                     
                     const xpFromOrb = XP_SETTINGS.xpPerOrb * (1 + (state.upgradeableStats.bonusXp || 0)) * xpMultiplier;
@@ -1406,10 +1412,31 @@ export const sketch = (p, state, callbacks) => {
         ui.updateUIVisibilityForMode('adventureRun');
         ui.updateCheatButtonsVisibility();
 
+        // --- NEW: Calculate resource space for Row 18 skill ---
+        if (state.skillTreeState['resource_conversion']) {
+            state.runResourceSpace = {
+                food: Math.max(0, state.maxFood - state.playerFood),
+                wood: Math.max(0, state.maxWood - state.playerWood)
+            };
+        } else {
+            state.runResourceSpace = { food: 0, wood: 0 };
+        }
+        
+        // --- NEW: Reset Accumulator ---
+        state.excessResourceAccumulator = { food: 0, wood: 0 };
+
         p.setBallSpeedMultiplier(settings.ballSpeed);
         level = startLevel; 
-        const ownedStartingCoinUpgrades = Object.keys(state.skillTreeState).filter(key => key.startsWith('starting_coin_') && state.skillTreeState[key]).length;
-        coins = ownedStartingCoinUpgrades * 5;
+        
+        let startingCoinBonus = 0;
+        if (state.skillTreeState['starting_coin_1']) startingCoinBonus += 5;
+        if (state.skillTreeState['starting_coin_2']) startingCoinBonus += 5;
+        if (state.skillTreeState['starting_coin_3']) startingCoinBonus += 5;
+        if (state.skillTreeState['starting_coin_4']) startingCoinBonus += 5;
+        if (state.skillTreeState['starting_coin_5']) startingCoinBonus += 5;
+
+        coins = startingCoinBonus;
+        
         giantBallCount = 0; 
         combo = 0; 
         maxComboThisTurn = 0;
@@ -1829,6 +1856,18 @@ export const sketch = (p, state, callbacks) => {
             foodCollected: 0,
             woodCollected: 0,
         };
+
+        // --- starting_mine Skill Application (Added back here for consistency if missed in levelgen) ---
+        let minesToAdd = 0;
+        if (state.skillTreeState['starting_mine_1']) minesToAdd++;
+        if (state.skillTreeState['starting_mine_2']) minesToAdd++;
+        if (state.skillTreeState['starting_mine_3']) minesToAdd++;
+        if (state.skillTreeState['starting_mine_4']) minesToAdd++;
+        if (state.skillTreeState['starting_mine_5']) minesToAdd++;
+
+        // Only try to add mines if levelgen didn't already handle it perfectly (it tries, but safe to re-check or just rely on levelgen logic)
+        // Actually, levelgen.js already handles this using `ownedStartingMineUpgrades`.
+        // We just need to make sure levelgen.js sees the new skill IDs. It checks via `startsWith('starting_mine_')`, so it should pick up _5 automatically.
 
         fireLasers(); // Fire lasers on new level
     };
@@ -2400,6 +2439,7 @@ export const sketch = (p, state, callbacks) => {
                             if (state.skillTreeState['golden_shot_coin_1']) coinMultiplier += 0.5;
                             if (state.skillTreeState['golden_shot_coin_2']) coinMultiplier += 0.5;
                             if (state.skillTreeState['golden_shot_coin_3']) coinMultiplier += 0.5;
+                            if (state.skillTreeState['golden_shot_coin_4']) coinMultiplier += 0.5; // New Skill
                             totalCoinsDropped = Math.floor(totalCoinsDropped * coinMultiplier);
                         }
                         
@@ -2425,17 +2465,55 @@ export const sketch = (p, state, callbacks) => {
                     
                     if (evt.foodDropped > 0) {
                         if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
-                            levelStats.foodCollected += evt.foodDropped;
-                            // runStats is available locally in sketch.js, so using it directly is fine.
-                            // If the user error was about gameController, it might have been they tried to use gameController here.
-                            runStats.totalFoodCollected = (runStats.totalFoodCollected || 0) + evt.foodDropped;
+                            // Intercept for resource conversion skill
+                            let amountToCollect = evt.foodDropped;
+                            let convertedCoins = 0;
+
+                            if (state.gameMode === 'adventureRun' && state.skillTreeState['resource_conversion']) {
+                                const currentTotal = runStats.totalFoodCollected + levelStats.foodCollected;
+                                const limit = state.runResourceSpace?.food || 0;
+                                let excess = 0;
+                                
+                                if (currentTotal >= limit) {
+                                    excess = amountToCollect;
+                                    amountToCollect = 0; 
+                                } else if (currentTotal + amountToCollect > limit) {
+                                    const allowed = limit - currentTotal;
+                                    excess = amountToCollect - allowed;
+                                    amountToCollect = allowed;
+                                }
+
+                                if (excess > 0) {
+                                    state.excessResourceAccumulator.food += excess;
+                                    const coinsToAward = Math.floor(state.excessResourceAccumulator.food / 10);
+                                    if (coinsToAward > 0) {
+                                        convertedCoins = coinsToAward;
+                                        state.excessResourceAccumulator.food %= 10;
+                                    }
+                                }
+                            }
+
+                            if (convertedCoins > 0) {
+                                p.addCoins(convertedCoins);
+                                floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y - 15, `+${convertedCoins} 🪙`, p.color(255, 215, 0)));
+                            }
+
+                            if (amountToCollect > 0) {
+                                levelStats.foodCollected += amountToCollect;
+                                runStats.totalFoodCollected = (runStats.totalFoodCollected || 0) + amountToCollect;
+                                sounds.foodCollect();
+                                floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${amountToCollect} 🥕`, p.color(232, 159, 35)));
+                                const canvasRect = p.canvas.getBoundingClientRect();
+                                ui.animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, amountToCollect);
+                            }
                         } else {
+                            // Home Base Mode direct collection
                             state.playerFood = Math.min(state.maxFood, state.playerFood + evt.foodDropped);
+                            sounds.foodCollect();
+                            floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
+                            const canvasRect = p.canvas.getBoundingClientRect();
+                            ui.animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.foodDropped);
                         }
-                        sounds.foodCollect();
-                        floatingTexts.push(new FloatingText(p, evt.center.x, evt.center.y, `+${evt.foodDropped} 🥕`, p.color(232, 159, 35)));
-                        const canvasRect = p.canvas.getBoundingClientRect();
-                        ui.animateFoodParticles(canvasRect.left + evt.center.x, canvasRect.top + evt.center.y, evt.foodDropped);
                     }
 
                     particles.push(...createBrickHitVFX(p, evt.center.x, evt.center.y, evt.color));
@@ -2502,7 +2580,7 @@ export const sketch = (p, state, callbacks) => {
         setRunStats: (newStats) => { runStats = newStats; },
         nextLevel: p.nextLevel,
     };
-    
+        
     function handleGameStates() { 
         if (gameState==='levelComplete'||gameState==='gameOver') { 
             if (state.isSpedUp) {
@@ -3017,7 +3095,7 @@ export const sketch = (p, state, callbacks) => {
     p.spawnShockwave = (x, y, radius, color) => {
         shockwaves.push(new Shockwave(p, x, y, radius, color, 5));
     };
-
+    
     function handleGameStates() { 
         if (gameState==='levelComplete'||gameState==='gameOver') { 
             if (state.isSpedUp) {

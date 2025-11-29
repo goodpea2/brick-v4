@@ -1,5 +1,8 @@
+
 // equipment.js
 import { EQUIPMENT_TEXT } from './text.js';
+import { state } from './state.js';
+import { EQUIPMENT_RARITY_WEIGHTS } from './balancing.js';
 
 export const RARITIES = {
     COMMON: 'Common',
@@ -312,14 +315,23 @@ export function generateRandomEquipment(ownedEquipmentIds) {
 
     const randomId = availableIds[Math.floor(Math.random() * availableIds.length)];
 
-    const rand = Math.random();
+    const weights = state.skillTreeState['better_loot_luck'] 
+        ? EQUIPMENT_RARITY_WEIGHTS.upgraded 
+        : EQUIPMENT_RARITY_WEIGHTS.base;
+
+    const totalWeight = weights.common + weights.rare + weights.epic;
+    let r = Math.random() * totalWeight;
+    
     let rarity;
-    if (rand < 0.1) {
+    if (r < weights.epic) {
         rarity = RARITIES.EPIC;
-    } else if (rand < 0.4) {
-        rarity = RARITIES.RARE;
     } else {
-        rarity = RARITIES.COMMON;
+        r -= weights.epic;
+        if (r < weights.rare) {
+            rarity = RARITIES.RARE;
+        } else {
+            rarity = RARITIES.COMMON;
+        }
     }
 
     return createEquipment(randomId, rarity);

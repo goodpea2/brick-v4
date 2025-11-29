@@ -60,8 +60,8 @@ export const SKILL_TREE_DATA = [
     ],
     // Row 13
     [
-        { id: 'starting_coin_3', name: '+5 Starting Coins', description: 'Start every run with 5 more coins.', cost: 12 },
-        { id: 'starting_mine_3', name: '+1 Starting Mine', description: 'Places one additional Mine on a random brick at the start of each level.', cost: 12 },
+        { id: 'starting_coin_3', name: '+5 Starting Coins', description: 'Start every run with 5 more coins.', cost: 15 },
+        { id: 'starting_mine_3', name: '+1 Starting Mine', description: 'Places one additional Mine on a random brick at the start of each level.', cost: 15 },
     ],
     // Row 14
     [
@@ -69,17 +69,40 @@ export const SKILL_TREE_DATA = [
     ],
     // Row 15
     [
-        { id: 'magnet_radius_4', name: '+10% Magnet Radius', description: 'Increases the collection radius for XP Orbs.', cost: 12 },
-        { id: 'explosive_chance_2', name: '+0.5% Explosive Chance', description: 'Slightly increases the chance for Explosive Bricks to spawn in levels.', cost: 12 },
+        { id: 'magnet_radius_4', name: '+10% Magnet Radius', description: 'Increases the collection radius for XP Orbs.', cost: 15 },
+        { id: 'explosive_chance_2', name: '+0.5% Explosive Chance', description: 'Slightly increases the chance for Explosive Bricks to spawn in levels.', cost: 15 },
     ],
     // Row 16
     [
-        { id: 'golden_shot_coin_3', name: '+50% Golden Coin Bonus', description: 'Golden Turns now grant an additional 50% coins.', cost: 12 },
-        { id: 'golden_shot_xp_3', name: '+100% Golden XP Bonus', description: 'Golden Turns now also grant +100% bonus XP from all sources.', cost: 12 },
+        { id: 'golden_shot_coin_3', name: '+50% Golden Coin Bonus', description: 'Golden Turns now grant an additional 50% coins.', cost: 15 },
+        { id: 'golden_shot_xp_3', name: '+100% Golden XP Bonus', description: 'Golden Turns now also grant +100% bonus XP from all sources.', cost: 15 },
     ],
     // Row 17
     [
-        { id: 'starting_coin_4', name: '+5 Starting Coins', description: 'Start every run with 5 more coins.', cost: 15 },
-        { id: 'starting_mine_4', name: '+1 Starting Mine', description: 'Places one additional Mine on a random brick at the start of each level.', cost: 15 },
+        { id: 'starting_coin_4', name: '+5 Starting Coins', description: 'Start every run with 5 more coins.', cost: 20 },
+        { id: 'starting_mine_4', name: '+1 Starting Mine', description: 'Places one additional Mine on a random brick at the start of each level.', cost: 20 },
+    ],
+    // Row 18
+    [
+        { id: 'resource_conversion', name: 'Resource to Coin', description: 'Excess resources collected during a run (exceeding Home Base storage) are partially converted into Coins.', cost: 25 },
+    ],
+    // Row 19
+    [
+        { id: 'magnet_radius_5', name: '+10% Magnet Radius', description: 'Increases the collection radius for XP Orbs.', cost: 20 },
+        { id: 'explosive_damage_3', name: '+5 Explosive Brick Damage', description: 'Increases the damage of Explosive Bricks.', cost: 20 },
+    ],
+    // Row 20
+    [
+        { id: 'golden_shot_coin_4', name: '+50% Golden Coin Bonus', description: 'Golden Turns now grant an additional 50% coins.', cost: 20 },
+        { id: 'golden_shot_xp_4', name: '+100% Golden XP Bonus', description: 'Golden Turns now also grant +100% bonus XP from all sources.', cost: 20 },
+    ],
+    // Row 21
+    [
+        { id: 'starting_coin_5', name: '+5 Starting Coins', description: 'Start every run with 5 more coins.', cost: 25 },
+        { id: 'starting_mine_5', name: '+1 Starting Mine', description: 'Places one additional Mine on a random brick at the start of each level.', cost: 25 },
+    ],
+    // Row 22
+    [
+        { id: 'better_loot_luck', name: 'Better Equipment Luck', description: 'Significantly increases the chance to find Rare and Epic equipment.', cost: 25 },
     ],
 ];

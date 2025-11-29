@@ -82,6 +82,8 @@ export const state = {
         minEnemyTypes: 1,
         maxEnemyTypes: 3,
     },
+    runResourceSpace: { food: 0, wood: 0 }, // For Row 18 skill
+    excessResourceAccumulator: { food: 0, wood: 0 }, // For tracking fractional excess resource conversion
 
     // Home Base State
     homeBaseTimeMultiplier: 1,
@@ -160,6 +162,7 @@ export function applyAllUpgrades() {
     if (state.gameMode === 'adventureRun') {
         if (state.skillTreeState['explosive_damage_1']) explosiveDamageBonus += 5;
         if (state.skillTreeState['explosive_damage_2']) explosiveDamageBonus += 5;
+        if (state.skillTreeState['explosive_damage_3']) explosiveDamageBonus += 5;
     }
     state.upgradeableStats.explosiveBrickDamage = 30 + explosiveDamageBonus;
 }

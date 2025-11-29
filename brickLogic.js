@@ -1,5 +1,9 @@
 
 
+
+
+
+
 // brickLogic.js
 import { FlyingIcon, FloatingText } from './vfx.js';
 import * as dom from './dom.js';
@@ -366,17 +370,51 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
                     }
                     
                     if (brick.food > 0) {
-                        const foodAmount = brick.food; // Get remaining food
-                        if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
-                            levelStats.foodCollected += foodAmount;
-                            gameController.getRunStats().totalFoodCollected += foodAmount;
-                        } else {
-                            state.playerFood = Math.min(state.maxFood, state.playerFood + foodAmount);
+                        let foodAmount = brick.food; // Get remaining food
+                        let convertedCoins = 0;
+
+                        if (state.gameMode === 'adventureRun' && state.skillTreeState['resource_conversion']) {
+                            const runStats = gameController.getRunStats();
+                            const currentTotal = runStats.totalFoodCollected + levelStats.foodCollected;
+                            const limit = state.runResourceSpace?.food || 0;
+                            let excess = 0;
+                            
+                            if (currentTotal >= limit) {
+                                excess = foodAmount;
+                                foodAmount = 0; 
+                            } else if (currentTotal + foodAmount > limit) {
+                                const allowed = limit - currentTotal;
+                                excess = foodAmount - allowed;
+                                foodAmount = allowed;
+                            }
+
+                            if (excess > 0) {
+                                state.excessResourceAccumulator.food += excess;
+                                const coinsToAward = Math.floor(state.excessResourceAccumulator.food / 10);
+                                if (coinsToAward > 0) {
+                                    convertedCoins = coinsToAward;
+                                    state.excessResourceAccumulator.food %= 10;
+                                }
+                            }
                         }
-                        sounds.foodCollect();
-                        floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y, `+${foodAmount} 🥕`, p.color(232, 159, 35)));
-                        const canvasRect = p.canvas.getBoundingClientRect();
-                        animateFoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, foodAmount);
+
+                        if (convertedCoins > 0) {
+                            gameController.addCoins(convertedCoins);
+                            floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y - 15, `+${convertedCoins} 🪙`, p.color(255, 215, 0)));
+                        }
+
+                        if (foodAmount > 0) {
+                            if (state.gameMode === 'adventureRun' || state.gameMode === 'trialRun') {
+                                levelStats.foodCollected += foodAmount;
+                                gameController.getRunStats().totalFoodCollected += foodAmount;
+                            } else {
+                                state.playerFood = Math.min(state.maxFood, state.playerFood + foodAmount);
+                            }
+                            sounds.foodCollect();
+                            floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y, `+${foodAmount} 🥕`, p.color(232, 159, 35)));
+                            const canvasRect = p.canvas.getBoundingClientRect();
+                            animateFoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, foodAmount);
+                        }
                     }
 
                     switch (brick.type) {
@@ -433,13 +471,47 @@ export function processBrokenBricks(lastBrickHitEvent, context) {
                             break;
                         case 'LogBrick':
                             if (state.gameMode !== 'homeBase') {
-                                const woodAmount = 10;
-                                levelStats.woodCollected += woodAmount;
-                                gameController.getRunStats().totalWoodCollected += woodAmount;
-                                sounds.woodCollect();
-                                floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y, `+${woodAmount} 🪵`, p.color(139, 69, 19)));
-                                const canvasRect = p.canvas.getBoundingClientRect();
-                                animateWoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, 1);
+                                let woodAmount = 10;
+                                let convertedCoins = 0;
+
+                                if (state.gameMode === 'adventureRun' && state.skillTreeState['resource_conversion']) {
+                                    const runStats = gameController.getRunStats();
+                                    const currentTotal = runStats.totalWoodCollected + levelStats.woodCollected;
+                                    const limit = state.runResourceSpace?.wood || 0;
+                                    let excess = 0;
+                                    
+                                    if (currentTotal >= limit) {
+                                        excess = woodAmount;
+                                        woodAmount = 0;
+                                    } else if (currentTotal + woodAmount > limit) {
+                                        const allowed = limit - currentTotal;
+                                        excess = woodAmount - allowed;
+                                        woodAmount = allowed;
+                                    }
+
+                                    if (excess > 0) {
+                                        state.excessResourceAccumulator.wood += excess;
+                                        const coinsToAward = Math.floor(state.excessResourceAccumulator.wood / 10);
+                                        if (coinsToAward > 0) {
+                                            convertedCoins = coinsToAward;
+                                            state.excessResourceAccumulator.wood %= 10;
+                                        }
+                                    }
+                                }
+
+                                if (convertedCoins > 0) {
+                                    gameController.addCoins(convertedCoins);
+                                    floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y - 15, `+${convertedCoins} 🪙`, p.color(255, 215, 0)));
+                                }
+
+                                if (woodAmount > 0) {
+                                    levelStats.woodCollected += woodAmount;
+                                    gameController.getRunStats().totalWoodCollected += woodAmount;
+                                    sounds.woodCollect();
+                                    floatingTexts.push(new FloatingText(p, centerVec.x, centerVec.y, `+${woodAmount} 🪵`, p.color(139, 69, 19)));
+                                    const canvasRect = p.canvas.getBoundingClientRect();
+                                    animateWoodParticles(canvasRect.left + centerVec.x, canvasRect.top + centerVec.y, 1);
+                                }
                             }
                             break;
                     }

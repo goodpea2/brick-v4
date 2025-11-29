@@ -415,9 +415,6 @@ export const DEFAULT_LEVEL_SETTINGS = {
     startingCoin: 3,
     coinIncrement: 3,
     maxCoin: 300,
-    startingFood: 3,
-    foodIncrement: 3,
-    maxFood: 300,
     bonusLevelInterval: 5,
     minCoinBonusMultiplier: 7,
     maxCoinBonusMultiplier: 10,
@@ -435,21 +432,19 @@ export const TRIAL_RUN_LEVEL_SETTINGS = {
     extraBallBricks: 0,
     brickCount: 60,
     startingBrickHp: 1000,
+    brickHpIncrement: 150,
     fewBrickLayoutChance: 0,
     startingCoin: 0,
     coinIncrement: 0,
     maxCoin: 0,
-    startingFood: 0,
-    foodIncrement: 0,
-    maxFood: 0,
     equipmentBrickInitialChance: 0,
     equipmentBrickChancePerLevel: 0,
     ballCageBrickChance: 0,
-    goalBricks: 5,
+    goalBricks: 4,
     explosiveBrickChance: 0.02,
     overlaySpawnLevels: {
         spike: 1,
-        sniper: 10,
+        sniper: 8,
         laser: 15,
     },
 };
@@ -672,3 +667,8 @@ export const INVASION_MYSTERY_POOL = [
     { id: 'ench_3', type: 'enchanter', subtype: 'enchanter3', minEa: 75, maxEa: 256, minStack: 1, maxStack: 3 },
     { id: 'ench_4', type: 'enchanter', subtype: 'enchanter4', minEa: 225, maxEa: 750, minStack: 1, maxStack: 1 },
 ];
+
+export const EQUIPMENT_RARITY_WEIGHTS = {
+    base: { common: 60, rare: 30, epic: 10 },
+    upgraded: { common: 50, rare: 40, epic: 15 }
+};
